@@ -1,0 +1,934 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "PixEz Sync 后端同步服务 API。除 /mirror/** Pixiv 形态镜像接口外，系统 API 均返回 {success,message,data} 标准响应。",
+        "title": "PixEz Sync Server API",
+        "contact": {},
+        "version": "1.0"
+    },
+    "basePath": "/",
+    "paths": {
+        "/api/pixez/illusts/{illust_id}/mirror": {
+            "get": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "description": "Returns the latest mirror task status for a Pixiv illustration.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Mirror"
+                ],
+                "summary": "Check illustration mirror status",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Pixiv illustration ID",
+                        "name": "illust_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.MirrorStatusResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "description": "Enqueues an async task to mirror a Pixiv illustration detail response and its original images.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Mirror"
+                ],
+                "summary": "Enqueue illustration mirror task",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Pixiv illustration ID",
+                        "name": "illust_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.MirrorStatusResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/pixez/ping": {
+            "get": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "description": "Verifies that the server is reachable and Basic Auth credentials are valid.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System"
+                ],
+                "summary": "Health check",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.PingData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/pixez/users": {
+            "get": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "description": "Retrieves all saved Pixiv users without sensitive token fields.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "List Pixiv users",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/model.PixivUserSafeDTO"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/pixez/users/{pixiv_user_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "description": "Retrieves a Pixiv user's stored credentials, including access and refresh tokens.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get Pixiv user credentials",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Pixiv user ID",
+                        "name": "pixiv_user_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.PixivUser"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "description": "Inserts or updates a Pixiv user's stored credentials. The path Pixiv user ID is authoritative.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Upsert Pixiv user credentials",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Pixiv user ID",
+                        "name": "pixiv_user_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Pixiv user credentials",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.PixivUser"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.MessageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "description": "Deletes a Pixiv user and all synced data associated with that user.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Delete Pixiv user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Pixiv user ID",
+                        "name": "pixiv_user_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.MessageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/pixez/users/{pixiv_user_id}/sync-data": {
+            "get": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "description": "Fetches all or selected synced data tables for a Pixiv user.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Sync Data"
+                ],
+                "summary": "Get synced user data",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Pixiv user ID",
+                        "name": "pixiv_user_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated table names, for example ban_comments,illust_histories",
+                        "name": "tables",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.UserDataPayload"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "description": "Replaces the provided synced data tables for a Pixiv user in a single database transaction.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Sync Data"
+                ],
+                "summary": "Replace synced user data",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Pixiv user ID",
+                        "name": "pixiv_user_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Synced user data payload",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.UserDataPayload"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.MessageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/pixez/users/{pixiv_user_id}/sync-data/hashes": {
+            "get": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "description": "Returns MD5 checksums for each synced table of a Pixiv user.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Sync Data"
+                ],
+                "summary": "Get synced data hashes",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Pixiv user ID",
+                        "name": "pixiv_user_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.UserDataHashes"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/mirror/v1/illust/detail": {
+            "get": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "description": "Reads a cached Pixiv /v1/illust/detail response and rewrites pximg URLs to this server's /mirror/pximg path. This endpoint intentionally returns the Pixiv response shape, not the standard PixEz Sync API envelope.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Pixiv Mirror"
+                ],
+                "summary": "Get mirrored Pixiv illustration detail",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Pixiv illustration ID",
+                        "name": "illust_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/model.BasicErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/model.BasicErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/model.BasicErrorResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "model.APIResponse": {
+            "type": "object",
+            "properties": {
+                "data": {},
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "model.BanComment": {
+            "type": "object",
+            "properties": {
+                "comment_id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.BanIllust": {
+            "type": "object",
+            "properties": {
+                "illust_id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.BanTag": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "translate_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.BanUser": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.BasicErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "model.IllustHistory": {
+            "type": "object",
+            "properties": {
+                "illust_id": {
+                    "type": "integer"
+                },
+                "picture_url": {
+                    "type": "string"
+                },
+                "time": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "user_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.MessageResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "model.MirrorStatusResponse": {
+            "type": "object",
+            "properties": {
+                "failed_count": {
+                    "type": "integer"
+                },
+                "illust_id": {
+                    "type": "integer"
+                },
+                "mirrored": {
+                    "type": "boolean"
+                },
+                "request_urls_json": {
+                    "type": "string"
+                },
+                "retry_urls_json": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "success_count": {
+                    "type": "integer"
+                },
+                "task_id": {
+                    "type": "string"
+                },
+                "total_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.NovelHistory": {
+            "type": "object",
+            "properties": {
+                "novel_id": {
+                    "type": "integer"
+                },
+                "picture_url": {
+                    "type": "string"
+                },
+                "time": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "user_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.PingData": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.PixivUser": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "account": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "device_token": {
+                    "type": "string"
+                },
+                "is_mail_authorized": {
+                    "type": "integer"
+                },
+                "is_premium": {
+                    "type": "integer"
+                },
+                "mail_address": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "pixiv_user_id": {
+                    "type": "string"
+                },
+                "refresh_token": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_image": {
+                    "type": "string"
+                },
+                "x_restrict": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.PixivUserSafeDTO": {
+            "type": "object",
+            "properties": {
+                "account": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "is_mail_authorized": {
+                    "type": "integer"
+                },
+                "is_premium": {
+                    "type": "integer"
+                },
+                "mail_address": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "pixiv_user_id": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_image": {
+                    "type": "string"
+                },
+                "x_restrict": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.TagHistory": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "translated_name": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.UserDataHashes": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "string"
+            }
+        },
+        "model.UserDataPayload": {
+            "type": "object",
+            "properties": {
+                "ban_comments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.BanComment"
+                    }
+                },
+                "ban_illusts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.BanIllust"
+                    }
+                },
+                "ban_tags": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.BanTag"
+                    }
+                },
+                "ban_users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.BanUser"
+                    }
+                },
+                "illust_histories": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.IllustHistory"
+                    }
+                },
+                "novel_histories": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.NovelHistory"
+                    }
+                },
+                "tag_histories": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.TagHistory"
+                    }
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "BasicAuth": {
+            "type": "basic"
+        }
+    }
+}

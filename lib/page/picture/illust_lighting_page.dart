@@ -41,6 +41,7 @@ import 'package:pixez/page/picture/illust_about_store.dart';
 import 'package:pixez/page/picture/illust_detail_content.dart';
 import 'package:pixez/page/picture/illust_row_page.dart';
 import 'package:pixez/page/picture/illust_store.dart';
+import 'package:pixez/custom/widgets/mirror_list_tile.dart';
 import 'package:pixez/page/picture/picture_list_page.dart';
 import 'package:pixez/page/picture/tag_for_illust_page.dart';
 import 'package:pixez/page/picture/ugoira_loader.dart';
@@ -1257,6 +1258,11 @@ class _IllustVerticalPageState extends State<IllustVerticalPage>
                         );
                         Navigator.pop(context);
                       },
+                    ),
+                    MirrorListTile(
+                      id: widget.id,
+                      illusts: illusts,
+                      illustStore: _illustStore,
                     ),
                     ListTile(
                       title: Text(I18n.of(context).report),

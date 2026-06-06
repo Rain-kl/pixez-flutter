@@ -45,6 +45,8 @@ import 'package:pixez/store/top_store.dart';
 import 'package:pixez/store/user_setting.dart';
 import 'package:rhttp/rhttp.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:pixez/custom/services/sync_config.dart';
+import 'package:pixez/custom/services/sync_service.dart';
 
 final RouteObserver<ModalRoute<void>> routeObserver =
     RouteObserver<ModalRoute<void>>();
@@ -64,6 +66,10 @@ main(List<String> args) async {
   await Rhttp.init();
   await MmapCache.init();
   WidgetsFlutterBinding.ensureInitialized();
+  await SyncConfig.ensureInitialized();
+  if (SyncConfig.enabled) {
+    SyncService.startPeriodicSyncTimer();
+  }
 
   if (Platform.isWindows || Platform.isLinux) {
     // sqflite ffi init

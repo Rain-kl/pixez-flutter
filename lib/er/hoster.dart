@@ -8,6 +8,7 @@ import 'package:pixez/main.dart';
 import 'package:pixez/models/onezero_response.dart';
 import 'package:pixez/network/pixez_network_settings.dart';
 import 'package:rhttp/rhttp.dart' as r;
+import 'package:pixez/custom/utils/sync_utils.dart';
 
 class Hoster {
   static Map<String, dynamic> _map = Map();
@@ -142,6 +143,7 @@ class Hoster {
       "referer": "https://app-api.pixiv.net/",
       "User-Agent": "PixivIOSApp/5.8.0",
     };
+    SyncUtils.addAuthHeaderIfNeeded(url, map);
     return map;
   }
 }

@@ -45,6 +45,7 @@ import 'package:pixez/saf_plugin.dart';
 import 'package:pixez/supportor_plugin.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path/path.dart' as Path;
+import 'package:pixez/custom/widgets/novel_mirror_list_tile.dart';
 
 class NovelViewerPage extends StatefulWidget {
   final int id;
@@ -669,6 +670,7 @@ class _NovelViewerPageState extends State<NovelViewerPage> {
                   SharePlus.instance.share(ShareParams(text: link));
                 },
               ),
+              NovelMirrorListTile(id: widget.id, novelStore: _novelStore),
             ],
           ),
         );

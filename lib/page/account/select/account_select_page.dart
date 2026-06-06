@@ -21,6 +21,7 @@ import 'package:pixez/i18n.dart';
 import 'package:pixez/main.dart';
 import 'package:pixez/models/account.dart';
 import 'package:pixez/page/login/login_page.dart';
+import 'package:pixez/custom/services/sync_service.dart';
 
 class AccountSelectPage extends StatefulWidget {
   @override
@@ -61,8 +62,21 @@ class _AccountSelectPageState extends State<AccountSelectPage> {
                 onTap: () async {
                   if (accountStore.accounts.indexOf(accountStore.now) !=
                       index) {
+                    final prevAccount = accountStore.now;
+                    
+                    // Switch immediately
                     await accountStore.select(index);
                     setState(() {});
+
+                    // Upload previous user's data in the background (no await)
+                    if (prevAccount != null) {
+                      SyncService.uploadUserData(prevAccount.userId);
+                    }
+                    
+                    // Download and restore the new user's data in the background (no await)
+                    if (accountStore.now != null) {
+                      SyncService.downloadAndRestoreUserData(accountStore.now!.userId);
+                    }
                   }
                 },
               );

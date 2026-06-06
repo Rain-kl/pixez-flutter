@@ -3,6 +3,7 @@ import 'package:pixez/er/leader.dart';
 import 'package:pixez/main.dart';
 import 'package:pixez/models/account.dart';
 import 'package:pixez/network/oauth_client.dart';
+import 'package:pixez/custom/services/sync_service.dart';
 
 class TokenPage extends StatefulWidget {
   @override
@@ -64,6 +65,8 @@ class _TokenPageState extends State<TokenPage> {
                       xRestrict: user.xRestrict,
                       isMailAuthorized: user.isMailAuthorized ? 1 : 0);
                   await accountProvider.insert(accountPersist);
+                  // Sync to backend asynchronously
+                  SyncService.upsertUser(accountPersist);
                   await accountStore.fetch();
                   Leader.pushUntilHome(context);
                 } catch (e) {

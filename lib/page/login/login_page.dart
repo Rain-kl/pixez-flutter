@@ -27,6 +27,7 @@ import 'package:pixez/page/about/about_page.dart';
 import 'package:pixez/page/hello/setting/setting_quality_page.dart';
 import 'package:pixez/page/login/token_page.dart';
 import 'package:pixez/page/webview/webview_page.dart';
+import 'package:pixez/custom/pages/sync_login_page.dart';
 import 'package:pixez/weiss_plugin.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 
@@ -135,6 +136,13 @@ class _LoginPageState extends State<LoginPage> {
                             Leader.push(context, TokenPage());
                           },
                           child: Text("Token"),
+                        ),
+                        SizedBox(height: 4),
+                        OutlinedButton(
+                          onPressed: () async {
+                            Leader.push(context, const SyncLoginPage());
+                          },
+                          child: const Text("后端同步登录"),
                         ),
                         SizedBox(height: 4),
                         TextButton(

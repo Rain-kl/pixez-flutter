@@ -43,6 +43,8 @@ import 'package:pixez/page/novel/novel_rail.dart';
 import 'package:pixez/page/shield/shield_page.dart';
 import 'package:pixez/page/task/job_page.dart';
 import 'package:pixez/page/theme/theme_page.dart';
+import 'package:pixez/custom/pages/sync_settings_page.dart';
+
 
 class SettingPage extends StatefulWidget {
   const SettingPage({Key? key}) : super(key: key);
@@ -240,6 +242,16 @@ class _SettingPageState extends State<SettingPage> {
                         Navigator.of(context).push(
                             MaterialPageRoute(builder: (BuildContext context) {
                           return SettingQualityPage();
+                        }));
+                      },
+                    ),
+                    ListTile(
+                      leading: Icon(Icons.cloud_sync),
+                      title: Text('数据同步'),
+                      onTap: () {
+                        Navigator.of(context).push(
+                            MaterialPageRoute(builder: (BuildContext context) {
+                          return const SyncSettingsPage();
                         }));
                       },
                     ),

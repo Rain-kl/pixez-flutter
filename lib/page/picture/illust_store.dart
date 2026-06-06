@@ -18,6 +18,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:mobx/mobx.dart';
+import 'package:pixez/custom/services/mirror_fallback_service.dart';
 import 'package:pixez/models/error_message.dart';
 import 'package:pixez/models/illust.dart';
 import 'package:pixez/models/illust_series_detail.dart';
@@ -66,12 +67,24 @@ abstract class _IllustStoreBase with Store {
       try {
         Response response = await client.getIllustDetail(id);
         final result = Illusts.fromJson(response.data['illust']);
-        illusts = result;
+        final mirrored = MirrorFallbackService.isLimitUnknownIllust(result)
+            ? await MirrorFallbackService.getMirroredIllust(id)
+            : null;
+        illusts = mirrored ?? result;
         isBookmark = illusts!.isBookmarked;
         state = illusts?.isBookmarked ?? isBookmark ? 2 : 0;
         captionFetching = false;
       } on DioException catch (e) {
         captionFetching = false;
+        final mirrored = await MirrorFallbackService.getMirroredIllust(id);
+        if (mirrored != null) {
+          illusts = mirrored;
+          isBookmark = mirrored.isBookmarked;
+          state = mirrored.isBookmarked ? 2 : 0;
+          captionFetchError = false;
+          errorMessage = null;
+          return;
+        }
         if (captionEmtpyCase) {
           captionFetchError = true;
         } else {

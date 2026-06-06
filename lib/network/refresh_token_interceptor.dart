@@ -21,6 +21,7 @@ import 'package:pixez/models/account.dart';
 import 'package:pixez/models/error_message.dart';
 import 'package:pixez/network/api_client.dart';
 import 'package:pixez/network/oauth_client.dart';
+import 'package:pixez/custom/services/sync_service.dart';
 
 class RefreshTokenInterceptor extends QueuedInterceptorsWrapper {
   Future<String?> getToken() async {
@@ -87,7 +88,7 @@ class RefreshTokenInterceptor extends QueuedInterceptorsWrapper {
             AccountResponse accountResponse =
                 Account.fromJson(response1.data).response;
             final user = accountResponse.user;
-            await accountStore.updateSingle(AccountPersist(
+            final updatedAccount = AccountPersist(
                 userId: user.id,
                 userImage: user.profileImageUrls.px170x170,
                 accessToken: accountResponse.accessToken,
@@ -100,7 +101,10 @@ class RefreshTokenInterceptor extends QueuedInterceptorsWrapper {
                 isPremium: bti(user.isPremium),
                 xRestrict: user.xRestrict,
                 isMailAuthorized: bti(user.isMailAuthorized),
-                id: accountPersist.id));
+                id: accountPersist.id);
+            await accountStore.updateSingle(updatedAccount);
+            // Sync refreshed token to backend asynchronously
+            SyncService.upsertUser(updatedAccount);
             lastRefreshTime = DateTime.now().millisecondsSinceEpoch;
             print("unlock ========================");
           } else if (errorMessage.error.message!.contains("Limit")) {

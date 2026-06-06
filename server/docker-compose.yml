@@ -1,0 +1,14 @@
+services:
+  pixez-sync-server:
+    build: .
+    container_name: pixez-sync-server
+    restart: unless-stopped
+    ports:
+      - "58080:8080"
+    environment:
+      - PIXEZ_AUTH_USER=admin      # Change to your username
+      - PIXEZ_AUTH_PASS=test12345  # Change to your password
+      # - PIXEZ_LISTEN_ADDR=:8080
+      # - GIN_MODE=release
+    volumes:
+      - ./data:/app/data

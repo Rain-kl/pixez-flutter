@@ -151,7 +151,7 @@ class PixivProvider {
   static ImageProvider url(String url, {String? preUrl}) {
     return CachedNetworkImageProvider(
       url,
-      headers: Hoster.header(url: preUrl),
+      headers: Hoster.header(url: preUrl ?? url),
       cacheManager: pixivCacheManager,
     );
   }

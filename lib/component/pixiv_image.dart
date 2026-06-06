@@ -20,6 +20,7 @@ import 'package:dio_compatibility_layer/dio_compatibility_layer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager_dio/flutter_cache_manager_dio.dart';
 
+import 'package:pixez/custom/services/mirror_fallback_service.dart';
 import 'package:pixez/er/hoster.dart';
 import 'package:pixez/er/illust_cacher.dart';
 import 'package:pixez/er/pixiv_image_source.dart';
@@ -171,17 +172,7 @@ class _PixivImageState extends State<PixivImage> {
     return CachedNetworkImage(
       placeholder: (context, url) =>
           widget.placeWidget ?? Container(height: height),
-      errorWidget: (context, url, _) => Container(
-        height: height,
-        child: Center(
-          child: TextButton(
-            onPressed: () {
-              setState(() {});
-            },
-            child: Text(":("),
-          ),
-        ),
-      ),
+      errorWidget: _buildErrorWidget,
       fadeOutDuration: widget.fade ? const Duration(milliseconds: 1000) : null,
       // memCacheWidth: width?.toInt(),
       // memCacheHeight: height?.toInt(),
@@ -193,13 +184,38 @@ class _PixivImageState extends State<PixivImage> {
       httpHeaders: {...Hoster.header(url: url)},
     );
   }
+
+  Widget _buildErrorWidget(BuildContext context, String failedUrl, Object _) {
+    final mirrorUrl = MirrorFallbackService.mirrorImageUrl(failedUrl);
+    if (mirrorUrl != null && mirrorUrl != url) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || url == mirrorUrl) return;
+        setState(() {
+          url = mirrorUrl;
+        });
+      });
+      return widget.placeWidget ?? Container(height: height);
+    }
+
+    return Container(
+      height: height,
+      child: Center(
+        child: TextButton(
+          onPressed: () {
+            setState(() {});
+          },
+          child: Text(":("),
+        ),
+      ),
+    );
+  }
 }
 
 class PixivProvider {
   static ImageProvider url(String url, {String? preUrl}) {
     return CachedNetworkImageProvider(
       url,
-      headers: Hoster.header(url: preUrl),
+      headers: Hoster.header(url: preUrl ?? url),
       cacheManager: pixivCacheManager,
     );
   }
