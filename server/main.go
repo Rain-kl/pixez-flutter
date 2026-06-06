@@ -43,6 +43,7 @@ func main() {
 	mirrorWorker := service.NewMirrorWorker(cfg.MirrorDir, cfg.MirrorDownloadConcurrency)
 	mirrorWorker.Start()
 	bookmarkExportWorker := service.NewBookmarkExportWorker(cfg.BookmarkExportInterval)
+	handler.BookmarkExportWorker = bookmarkExportWorker
 	bookmarkExportWorker.Start()
 
 	// Initialize Gin Router
@@ -60,10 +61,13 @@ func main() {
 		api.GET("/users/:pixiv_user_id", handler.GetUser)
 		api.PUT("/users/:pixiv_user_id", handler.UpsertUser)
 		api.DELETE("/users/:pixiv_user_id", handler.DeleteUser)
+		api.GET("/users/:pixiv_user_id/bookmarks/illust/removed", handler.ListRemovedBookmarkIllusts)
 		api.GET("/users/:pixiv_user_id/sync-data", handler.GetUserData)
 		api.POST("/users/:pixiv_user_id/sync-data", handler.PostUserData)
 		api.GET("/users/:pixiv_user_id/sync-data/hashes", handler.GetUserDataHashes)
 		api.GET("/scheduled-tasks", handler.ListScheduledTasks)
+		api.GET("/scheduled-tasks/bookmark-export", handler.GetBookmarkExportTask)
+		api.POST("/scheduled-tasks/bookmark-export/run", handler.RunBookmarkExportTask)
 		api.POST("/illusts/:illust_id/mirror", handler.MirrorIllust)
 		api.GET("/illusts/:illust_id/mirror", handler.CheckIllustMirror)
 		api.POST("/novels/:novel_id/mirror", handler.MirrorNovel)
@@ -75,7 +79,7 @@ func main() {
 	{
 		mirror.GET("/v1/illust/detail", handler.GetMirroredIllustDetail)
 		mirror.GET("/v1/novel/detail", handler.GetMirroredNovelDetail)
-		mirror.GET("/v1/novel/text", handler.GetMirroredNovelText)
+		mirror.GET("/webview/v2/novel", handler.GetMirroredNovelText)
 		mirror.GET("/pximg/*path", handler.ServeMirroredImage)
 	}
 

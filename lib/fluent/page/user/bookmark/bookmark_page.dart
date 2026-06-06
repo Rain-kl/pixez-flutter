@@ -17,14 +17,15 @@
 import 'dart:async';
 
 import 'package:fluent_ui/fluent_ui.dart';
-import 'package:pixez/fluent/component/sort_group.dart';
+import 'package:pixez/custom/services/removed_bookmark_source.dart';
 import 'package:pixez/er/leader.dart';
-import 'package:pixez/i18n.dart';
+import 'package:pixez/fluent/component/sort_group.dart';
 import 'package:pixez/fluent/lighting/fluent_lighting_page.dart';
+import 'package:pixez/fluent/page/user/bookmark/tag/user_bookmark_tag_page.dart';
+import 'package:pixez/i18n.dart';
 import 'package:pixez/lighting/lighting_store.dart';
 import 'package:pixez/main.dart';
 import 'package:pixez/network/api_client.dart';
-import 'package:pixez/fluent/page/user/bookmark/tag/user_bookmark_tag_page.dart';
 
 class BookmarkPage extends StatefulWidget {
   final int id;
@@ -115,19 +116,32 @@ class _BookmarkPageState extends State<BookmarkPage>
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           SortGroup(
-            children: [I18n.of(context).public, I18n.of(context).private],
+            children: [I18n.of(context).public, I18n.of(context).private, '失效'],
             onChange: (index) {
               if (index == 0)
                 setState(() {
                   futureGet = ApiForceSource(
-                      futureGet: (bool e) => apiClient.getBookmarksIllust(
-                          widget.id, restrict = 'public', null));
+                    futureGet: (bool e) => apiClient.getBookmarksIllust(
+                      widget.id,
+                      restrict = 'public',
+                      null,
+                    ),
+                  );
                 });
               if (index == 1)
                 setState(() {
                   futureGet = ApiForceSource(
-                      futureGet: (bool e) => apiClient.getBookmarksIllust(
-                          widget.id, restrict = 'private', null));
+                    futureGet: (bool e) => apiClient.getBookmarksIllust(
+                      widget.id,
+                      restrict = 'private',
+                      null,
+                    ),
+                  );
+                });
+              if (index == 2)
+                setState(() {
+                  restrict = 'removed';
+                  futureGet = RemovedBookmarkSource(userId: widget.id);
                 });
             },
           ),

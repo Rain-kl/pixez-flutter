@@ -187,6 +187,50 @@ class SyncApi {
     }
   }
 
+  static Future<Response> getRemovedBookmarkIllusts({
+    required int userId,
+    int? offset,
+    int? limit,
+  }) async {
+    if (!SyncConfig.enabled || SyncConfig.serverUrl.isEmpty) {
+      throw Exception('Sync server is not configured');
+    }
+
+    final response = await getDioClient().get(
+      '/api/pixez/users/$userId/bookmarks/illust/removed',
+      queryParameters: {
+        if (offset != null) 'offset': offset,
+        if (limit != null) 'limit': limit,
+      },
+    );
+    return _unwrapPixivPayload(response);
+  }
+
+  static Future<Response> getRemovedBookmarkIllustsNext(String url) async {
+    if (!SyncConfig.enabled || SyncConfig.serverUrl.isEmpty) {
+      throw Exception('Sync server is not configured');
+    }
+
+    final response = await getDioClient().get(url);
+    return _unwrapPixivPayload(response);
+  }
+
+  static Response _unwrapPixivPayload(Response response) {
+    if (response.statusCode == 200 && response.data?['success'] == true) {
+      return Response(
+        requestOptions: response.requestOptions,
+        data: response.data['data'],
+        statusCode: response.statusCode,
+        statusMessage: response.statusMessage,
+        headers: response.headers,
+        redirects: response.redirects,
+        isRedirect: response.isRedirect,
+        extra: response.extra,
+      );
+    }
+    throw Exception(response.data?['message'] ?? 'Sync server request failed');
+  }
+
   static Future<bool> isIllustMirrored(int id) async {
     final data = await getIllustMirrorStatus(id);
     return data?['mirrored'] == true;
@@ -282,7 +326,7 @@ class SyncApi {
     }
     try {
       return getDioClient().get(
-        '/mirror/v1/novel/text',
+        '/mirror/webview/v2/novel',
         queryParameters: {'novel_id': id},
       );
     } catch (_) {

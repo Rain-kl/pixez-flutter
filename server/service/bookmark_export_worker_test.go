@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strconv"
@@ -52,6 +53,8 @@ func TestBookmarkExportWorkerUpsertsAndMarksMissingRemoved(t *testing.T) {
 			body := `{"illusts":[` + bookmarkIllustJSON(100, "first") + `,` + bookmarkIllustJSON(200, "second") + `],"next_url":null}`
 			if call == 2 {
 				body = `{"illusts":[` + bookmarkIllustJSON(100, "first updated") + `],"next_url":null}`
+			} else if call == 3 {
+				body = `{"illusts":[` + bookmarkLimitUnknownIllustJSON(100, "first hidden") + `],"next_url":null}`
 			}
 			return &http.Response{
 				StatusCode: http.StatusOK,
@@ -77,7 +80,7 @@ func TestBookmarkExportWorkerUpsertsAndMarksMissingRemoved(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second export failed: %v", err)
 	}
-	if result.TotalCount != 1 || result.UpdatedCount != 1 || result.RemovedCount != 1 {
+	if result.TotalCount != 1 || result.UpdatedCount != 0 || result.RemovedCount != 1 {
 		t.Fatalf("unexpected second export result: %+v", result)
 	}
 
@@ -85,8 +88,8 @@ func TestBookmarkExportWorkerUpsertsAndMarksMissingRemoved(t *testing.T) {
 	if err := db.DB.First(&kept, "pixiv_user_id = ? AND illust_id = ?", user.PixivUserID, 100).Error; err != nil {
 		t.Fatalf("expected kept bookmark: %v", err)
 	}
-	if kept.Removed || !strings.Contains(kept.IllustJSON, "first updated") {
-		t.Fatalf("expected bookmark 100 to be updated and active: removed=%v json=%s", kept.Removed, kept.IllustJSON)
+	if kept.Removed || !strings.Contains(kept.IllustJSON, "first") || strings.Contains(kept.IllustJSON, "first updated") {
+		t.Fatalf("expected bookmark 100 to stay unchanged and active: removed=%v json=%s", kept.Removed, kept.IllustJSON)
 	}
 
 	var removed model.BookmarkIllust
@@ -97,11 +100,50 @@ func TestBookmarkExportWorkerUpsertsAndMarksMissingRemoved(t *testing.T) {
 		t.Fatalf("expected bookmark 200 to be marked removed, got removed=%v removedAt=%v", removed.Removed, removed.RemovedAt)
 	}
 
+	var hiddenIllust PixivIllust
+	if err := json.Unmarshal([]byte(bookmarkLimitUnknownIllustJSON(100, "first hidden")), &hiddenIllust); err != nil {
+		t.Fatalf("failed to unmarshal limit_unknown illust: %v", err)
+	}
+	if !pixivIllustHasLimitUnknownImage(hiddenIllust) {
+		t.Fatalf("expected test helper to generate limit_unknown image urls: %+v", hiddenIllust.ImageUrls)
+	}
+
+	result, err = worker.exportUserForRestrict(user, "public")
+	if err != nil {
+		t.Fatalf("third export failed: %v", err)
+	}
+	if result.TotalCount != 1 || result.UpdatedCount != 0 || result.RemovedCount != 1 {
+		t.Fatalf("unexpected third export result: %+v", result)
+	}
+	if err := db.DB.First(&kept, "pixiv_user_id = ? AND illust_id = ?", user.PixivUserID, 100).Error; err != nil {
+		t.Fatalf("expected hidden bookmark: %v", err)
+	}
+	if !kept.Removed || kept.RemovedAt == nil {
+		t.Fatalf("expected limit_unknown bookmark 100 to be marked removed: removed=%v removedAt=%v", kept.Removed, kept.RemovedAt)
+	}
+
 	var count int64
 	db.DB.Model(&model.BookmarkIllust{}).Where("pixiv_user_id = ?", user.PixivUserID).Count(&count)
 	if count != 2 {
 		t.Fatalf("expected removed bookmark to stay in database, got count=%d", count)
 	}
+}
+
+func bookmarkLimitUnknownIllustJSON(id int64, title string) string {
+	return strings.Replace(
+		bookmarkIllustJSON(id, title),
+		`"image_urls": {
+			"square_medium": "https://i.pximg.net/`+intToString(id)+`_p0_square1200.jpg",
+			"medium": "https://i.pximg.net/`+intToString(id)+`_p0_master1200.jpg",
+			"large": "https://i.pximg.net/`+intToString(id)+`_p0_master1200.jpg"
+		}`,
+		`"image_urls": {
+			"square_medium": "https://s.pximg.net/common/images/limit_unknown_360.png",
+			"medium": "https://s.pximg.net/common/images/limit_unknown_360.png",
+			"large": "https://s.pximg.net/common/images/limit_unknown_360.png"
+		}`,
+		1,
+	)
 }
 
 func bookmarkIllustJSON(id int64, title string) string {

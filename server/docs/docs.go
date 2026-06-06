@@ -129,6 +129,120 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/pixez/novels/{novel_id}/mirror": {
+            "get": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "description": "Returns the latest mirror task status for a Pixiv novel.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Mirror"
+                ],
+                "summary": "Check novel mirror status",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Pixiv novel ID",
+                        "name": "novel_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.MirrorStatusResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "description": "Enqueues an async task to mirror a Pixiv novel detail and its text content.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Mirror"
+                ],
+                "summary": "Enqueue novel mirror task",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Pixiv novel ID",
+                        "name": "novel_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.MirrorStatusResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/pixez/ping": {
             "get": {
                 "security": [
@@ -165,6 +279,138 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/pixez/scheduled-tasks": {
+            "get": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "description": "Retrieves all scheduled background tasks with their run status, timing, and error info.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System"
+                ],
+                "summary": "List scheduled tasks",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/model.ScheduledTask"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/pixez/scheduled-tasks/bookmark-export": {
+            "get": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "description": "Retrieves the bookmark export scheduled task status.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System"
+                ],
+                "summary": "Get bookmark export task",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.ScheduledTask"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/pixez/scheduled-tasks/bookmark-export/run": {
+            "post": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "description": "Starts the bookmark export task asynchronously. If the task is already running, returns 409.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System"
+                ],
+                "summary": "Run bookmark export task",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.APIResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/model.ErrorResponse"
                         }
@@ -388,6 +634,70 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/pixez/users/{pixiv_user_id}/bookmarks/illust/removed": {
+            "get": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "description": "Retrieves exported bookmark illustrations that disappeared from Pixiv bookmark lists.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Bookmarks"
+                ],
+                "summary": "List removed bookmark illustrations",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Pixiv user ID",
+                        "name": "pixiv_user_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bookmark restrict filter: public or private",
+                        "name": "restrict",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Pagination offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Pagination limit, max 100",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/pixez/users/{pixiv_user_id}/sync-data": {
             "get": {
                 "security": [
@@ -580,6 +890,110 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Pixiv illustration ID",
                         "name": "illust_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/model.BasicErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/model.BasicErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/model.BasicErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/mirror/v1/novel/detail": {
+            "get": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "description": "Reads a cached Pixiv /v2/novel/detail response and rewrites pximg URLs to this server's /mirror/pximg path.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Pixiv Mirror"
+                ],
+                "summary": "Get mirrored Pixiv novel detail",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Pixiv novel ID",
+                        "name": "novel_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/model.BasicErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/model.BasicErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/model.BasicErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/mirror/webview/v2/novel": {
+            "get": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "description": "Reads the cached webview novel JSON (NovelWebResponse) from the mirror and rewrites pximg URLs to this server's /mirror/pximg path.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Pixiv Mirror"
+                ],
+                "summary": "Get mirrored Pixiv novel text",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Pixiv novel ID",
+                        "name": "novel_id",
                         "in": "query",
                         "required": true
                     }
@@ -862,6 +1276,41 @@ const docTemplate = `{
                 },
                 "x_restrict": {
                     "type": "integer"
+                }
+            }
+        },
+        "model.ScheduledTask": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "interval_seconds": {
+                    "type": "integer"
+                },
+                "last_duration_ms": {
+                    "type": "integer"
+                },
+                "last_error": {
+                    "type": "string"
+                },
+                "last_run_at": {
+                    "type": "string"
+                },
+                "last_status": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "next_run_at": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
                 }
             }
         },

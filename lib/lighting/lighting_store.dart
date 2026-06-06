@@ -37,6 +37,10 @@ abstract class LightSource {
   String? glanceKey;
 }
 
+abstract class PagedLightSource {
+  Future<Response> fetchNext(String url);
+}
+
 class ApiSource extends LightSource {
   FutureGet futureGet;
 
@@ -170,7 +174,9 @@ abstract class _LightingStoreBase with Store {
     errorMessage = null;
     try {
       if (nextUrl != null && nextUrl!.isNotEmpty) {
-        Response result = await apiClient.getNext(nextUrl!);
+        Response result = source is PagedLightSource
+            ? await (source as PagedLightSource).fetchNext(nextUrl!)
+            : await apiClient.getNext(nextUrl!);
         Recommend recommend = Recommend.fromJson(result.data);
         nextUrl = recommend.nextUrl;
         var map = recommend.illusts.map((e) => IllustStore(e.id, e));

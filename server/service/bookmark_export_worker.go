@@ -7,13 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
+	"sync"
 	"time"
 
 	"pixez-sync/db"
 	"pixez-sync/model"
 
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 var bookmarkRestricts = []string{"public", "private"}
@@ -24,6 +25,7 @@ type BookmarkExportWorker struct {
 	Interval time.Duration
 	Pixiv    *PixivUtils
 	stopCh   chan struct{}
+	runMu    sync.Mutex
 }
 
 type BookmarkExportResult struct {
@@ -35,6 +37,15 @@ type BookmarkExportResult struct {
 	UpdatedCount int
 	RemovedCount int
 }
+
+type bookmarkIllustSaveStatus int
+
+const (
+	bookmarkIllustSaveSkipped bookmarkIllustSaveStatus = iota
+	bookmarkIllustSaveCreated
+	bookmarkIllustSaveUpdated
+	bookmarkIllustSaveRemoved
+)
 
 func NewBookmarkExportWorker(interval time.Duration) *BookmarkExportWorker {
 	if interval <= 0 {
@@ -72,7 +83,7 @@ func (w *BookmarkExportWorker) loop() {
 		case <-timer.C:
 		}
 
-		w.runOnceAndUpdate()
+		w.RunOnceAndUpdate()
 	}
 }
 
@@ -91,7 +102,7 @@ func (w *BookmarkExportWorker) ensureScheduledTask() {
 		return
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	nextRun := now.Add(scheduledTaskInitialDelay)
 	task = model.ScheduledTask{
 		Name:            model.ScheduledTaskBookmarkExport,
@@ -115,15 +126,39 @@ func (w *BookmarkExportWorker) timeUntilNextRun() time.Duration {
 	if task.NextRunAt == nil {
 		return w.Interval
 	}
-	d := time.Until(*task.NextRunAt)
+	// Normalize to UTC for consistent comparison with SQLite-stored timestamps
+	nextRunUTC := task.NextRunAt.UTC()
+	d := time.Until(nextRunUTC)
 	if d <= 0 {
 		return 0
 	}
 	return d
 }
 
-func (w *BookmarkExportWorker) runOnceAndUpdate() {
-	now := time.Now()
+func (w *BookmarkExportWorker) RunOnceAsync() bool {
+	if !w.runMu.TryLock() {
+		return false
+	}
+	go func() {
+		defer w.runMu.Unlock()
+		w.runOnceAndUpdateLocked()
+	}()
+	return true
+}
+
+func (w *BookmarkExportWorker) RunOnceAndUpdate() bool {
+	if !w.runMu.TryLock() {
+		return false
+	}
+	defer w.runMu.Unlock()
+	w.runOnceAndUpdateLocked()
+	return true
+}
+
+func (w *BookmarkExportWorker) runOnceAndUpdateLocked() {
+	w.ensureScheduledTask()
+
+	now := time.Now().UTC()
 	nextRun := now.Add(w.Interval)
 
 	db.DB.Model(&model.ScheduledTask{}).
@@ -142,7 +177,7 @@ func (w *BookmarkExportWorker) runOnceAndUpdate() {
 	updates := map[string]any{
 		"last_duration_ms": elapsed.Milliseconds(),
 		"next_run_at":      nextRun,
-		"updated_at":       time.Now(),
+		"updated_at":       time.Now().UTC(),
 	}
 	if err != nil {
 		updates["last_status"] = model.ScheduledTaskStatusFailed
@@ -261,6 +296,7 @@ func (w *BookmarkExportWorker) exportUserWithRun(user model.PixivUser, runID str
 		"pixivUserID", user.PixivUserID, "restrict", restrict, "initialURL", nextURL)
 
 	page := 0
+	seenIllustIDs := make([]int64, 0)
 	for nextURL != "" {
 		page++
 		_, payload, err := w.Pixiv.GetBookmarkIllusts(user, nextURL)
@@ -286,7 +322,7 @@ func (w *BookmarkExportWorker) exportUserWithRun(user model.PixivUser, runID str
 			return err
 		}
 		for _, illust := range payload.Illusts {
-			created, err := upsertBookmarkIllust(user.PixivUserID, restrict, runID, illust)
+			saveStatus, err := upsertBookmarkIllust(user.PixivUserID, restrict, runID, illust)
 			if err != nil {
 				slog.Debug("Bookmark upsert failed",
 					"pixivUserID", user.PixivUserID, "restrict", restrict,
@@ -294,46 +330,70 @@ func (w *BookmarkExportWorker) exportUserWithRun(user model.PixivUser, runID str
 				return err
 			}
 			result.TotalCount++
-			if created {
+			if saveStatus != bookmarkIllustSaveRemoved {
+				seenIllustIDs = append(seenIllustIDs, illust.ID)
+			}
+			if saveStatus == bookmarkIllustSaveCreated {
 				result.NewCount++
-			} else {
+			} else if saveStatus == bookmarkIllustSaveUpdated {
 				result.UpdatedCount++
+			} else if saveStatus == bookmarkIllustSaveRemoved {
+				result.RemovedCount++
 			}
 		}
 		nextURL = payload.NextURL
 	}
 
-	removed, err := markMissingBookmarksRemoved(user.PixivUserID, restrict, runID)
+	removed, err := markMissingBookmarksRemoved(user.PixivUserID, restrict, seenIllustIDs)
 	if err != nil {
 		return err
 	}
-	result.RemovedCount = int(removed)
+	result.RemovedCount += int(removed)
 	slog.Debug("Bookmark export missing marks applied",
 		"pixivUserID", user.PixivUserID, "restrict", restrict, "removedCount", removed)
 	return nil
 }
 
-func upsertBookmarkIllust(pixivUserID string, restrict string, runID string, illust PixivIllust) (bool, error) {
+func upsertBookmarkIllust(pixivUserID string, restrict string, runID string, illust PixivIllust) (bookmarkIllustSaveStatus, error) {
 	if illust.ID <= 0 {
-		return false, fmt.Errorf("bookmark export received illust without id")
+		return bookmarkIllustSaveSkipped, fmt.Errorf("bookmark export received illust without id")
 	}
-	raw, err := json.Marshal(illust)
-	if err != nil {
-		return false, err
-	}
-	now := time.Now()
 
 	var existing model.BookmarkIllust
-	err = db.DB.Where(
+	err := db.DB.Where(
 		"pixiv_user_id = ? AND restrict = ? AND illust_id = ?",
 		pixivUserID,
 		restrict,
 		illust.ID,
 	).First(&existing).Error
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return false, err
+		return bookmarkIllustSaveSkipped, err
 	}
 	created := errors.Is(err, gorm.ErrRecordNotFound)
+	isLimitUnknown := pixivIllustHasLimitUnknownImage(illust)
+	if isLimitUnknown && !created {
+		if existing.Removed {
+			return bookmarkIllustSaveSkipped, nil
+		}
+		now := time.Now()
+		if err := db.DB.Model(&existing).Updates(map[string]any{
+			"removed":    true,
+			"removed_at": now,
+			"updated_at": now,
+		}).Error; err != nil {
+			return bookmarkIllustSaveSkipped, err
+		}
+		return bookmarkIllustSaveRemoved, nil
+	}
+	if !created && !existing.Removed {
+		return bookmarkIllustSaveSkipped, nil
+	}
+
+	raw, err := json.Marshal(illust)
+	if err != nil {
+		return bookmarkIllustSaveSkipped, err
+	}
+	now := time.Now()
 
 	record := model.BookmarkIllust{
 		PixivUserID:     pixivUserID,
@@ -356,19 +416,27 @@ func upsertBookmarkIllust(pixivUserID string, restrict string, runID string, ill
 		IllustJSON:      string(raw),
 		LastExportRunID: runID,
 		LastSeenAt:      now,
-		Removed:         false,
+		Removed:         isLimitUnknown,
 		RemovedAt:       nil,
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}
+	if isLimitUnknown {
+		record.RemovedAt = &now
+	}
 
-	if err := db.DB.Clauses(clause.OnConflict{
-		Columns: []clause.Column{
-			{Name: "pixiv_user_id"},
-			{Name: "restrict"},
-			{Name: "illust_id"},
-		},
-		DoUpdates: clause.Assignments(map[string]any{
+	if created {
+		if err := db.DB.Create(&record).Error; err != nil {
+			return bookmarkIllustSaveSkipped, err
+		}
+		if isLimitUnknown {
+			return bookmarkIllustSaveRemoved, nil
+		}
+		return bookmarkIllustSaveCreated, nil
+	}
+
+	if err := db.DB.Model(&existing).Updates(
+		map[string]any{
 			"title":              record.Title,
 			"type":               record.Type,
 			"user_id":            record.UserID,
@@ -389,21 +457,42 @@ func upsertBookmarkIllust(pixivUserID string, restrict string, runID string, ill
 			"removed":            false,
 			"removed_at":         nil,
 			"updated_at":         record.UpdatedAt,
-		}),
-	}).Create(&record).Error; err != nil {
-		return false, err
+		},
+	).Error; err != nil {
+		return bookmarkIllustSaveSkipped, err
 	}
-	return created, nil
+	return bookmarkIllustSaveUpdated, nil
 }
 
-func markMissingBookmarksRemoved(pixivUserID string, restrict string, runID string) (int64, error) {
+func pixivIllustHasLimitUnknownImage(illust PixivIllust) bool {
+	if strings.Contains(illust.ImageUrls.SquareMedium, "limit_unknown_360") ||
+		strings.Contains(illust.ImageUrls.Medium, "limit_unknown_360") ||
+		strings.Contains(illust.ImageUrls.Large, "limit_unknown_360") ||
+		strings.Contains(illust.MetaSinglePage.OriginalImageURL, "limit_unknown_360") {
+		return true
+	}
+	for _, page := range illust.MetaPages {
+		if strings.Contains(page.ImageUrls.SquareMedium, "limit_unknown_360") ||
+			strings.Contains(page.ImageUrls.Medium, "limit_unknown_360") ||
+			strings.Contains(page.ImageUrls.Large, "limit_unknown_360") ||
+			strings.Contains(page.ImageUrls.Original, "limit_unknown_360") {
+			return true
+		}
+	}
+	return false
+}
+
+func markMissingBookmarksRemoved(pixivUserID string, restrict string, seenIllustIDs []int64) (int64, error) {
 	now := time.Now()
-	result := db.DB.Model(&model.BookmarkIllust{}).
-		Where("pixiv_user_id = ? AND restrict = ? AND last_export_run_id <> ? AND removed = ?", pixivUserID, restrict, runID, false).
-		Updates(map[string]any{
-			"removed":    true,
-			"removed_at": now,
-			"updated_at": now,
-		})
+	query := db.DB.Model(&model.BookmarkIllust{}).
+		Where("pixiv_user_id = ? AND restrict = ? AND removed = ?", pixivUserID, restrict, false)
+	if len(seenIllustIDs) > 0 {
+		query = query.Where("illust_id NOT IN ?", seenIllustIDs)
+	}
+	result := query.Updates(map[string]any{
+		"removed":    true,
+		"removed_at": now,
+		"updated_at": now,
+	})
 	return result.RowsAffected, result.Error
 }

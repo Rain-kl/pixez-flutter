@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"pixez-sync/db"
 	"pixez-sync/handler"
@@ -28,9 +29,11 @@ func setupTestRouter() *gin.Engine {
 		api.GET("/users/:pixiv_user_id", handler.GetUser)
 		api.PUT("/users/:pixiv_user_id", handler.UpsertUser)
 		api.DELETE("/users/:pixiv_user_id", handler.DeleteUser)
+		api.GET("/users/:pixiv_user_id/bookmarks/illust/removed", handler.ListRemovedBookmarkIllusts)
 		api.GET("/users/:pixiv_user_id/sync-data", handler.GetUserData)
 		api.POST("/users/:pixiv_user_id/sync-data", handler.PostUserData)
 		api.GET("/users/:pixiv_user_id/sync-data/hashes", handler.GetUserDataHashes)
+		api.GET("/scheduled-tasks/bookmark-export", handler.GetBookmarkExportTask)
 	}
 	return r
 }
@@ -54,6 +57,7 @@ func TestPixivUserFlow(t *testing.T) {
 		&model.TagHistory{},
 		&model.BookmarkIllust{},
 		&model.BookmarkExportRun{},
+		&model.ScheduledTask{},
 	); err != nil {
 		t.Fatalf("failed to migrate: %v", err)
 	}
@@ -374,6 +378,109 @@ func TestPixivUserFlow(t *testing.T) {
 		data := res.Data
 		if data.BanTags == nil || len(*data.BanTags) != 1 || (*data.BanTags)[0].Name != "tag2" || data.IllustHistories == nil || len(*data.IllustHistories) != 0 {
 			t.Errorf("overwrite failed, got sync data: %+v", data)
+		}
+	})
+
+	// 7f. Test removed bookmark illust list
+	t.Run("ListRemovedBookmarkIllusts", func(t *testing.T) {
+		now := time.Now()
+		records := []model.BookmarkIllust{
+			{
+				PixivUserID:     "987654",
+				Restrict:        "public",
+				IllustID:        100,
+				IllustJSON:      `{"id":100,"title":"removed first"}`,
+				LastExportRunID: "run-1",
+				LastSeenAt:      now,
+				Removed:         true,
+				RemovedAt:       &now,
+			},
+			{
+				PixivUserID:     "987654",
+				Restrict:        "private",
+				IllustID:        200,
+				IllustJSON:      `{"id":200,"title":"removed second"}`,
+				LastExportRunID: "run-1",
+				LastSeenAt:      now,
+				Removed:         true,
+				RemovedAt:       &now,
+			},
+			{
+				PixivUserID:     "987654",
+				Restrict:        "public",
+				IllustID:        300,
+				IllustJSON:      `{"id":300,"title":"active"}`,
+				LastExportRunID: "run-1",
+				LastSeenAt:      now,
+				Removed:         false,
+			},
+		}
+		if err := gormDB.Create(&records).Error; err != nil {
+			t.Fatalf("failed to seed bookmark illusts: %v", err)
+		}
+
+		req, _ := http.NewRequest("GET", "/api/pixez/users/987654/bookmarks/illust/removed?limit=1", nil)
+		req.SetBasicAuth("admin", "test12345")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d", w.Code)
+		}
+
+		var res struct {
+			Success bool `json:"success"`
+			Data    struct {
+				Illusts []map[string]any `json:"illusts"`
+				NextURL string           `json:"next_url"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &res); err != nil {
+			t.Fatalf("failed to unmarshal: %v", err)
+		}
+		if !res.Success {
+			t.Errorf("expected success true, got false")
+		}
+		if len(res.Data.Illusts) != 1 || res.Data.Illusts[0]["title"] == "active" {
+			t.Errorf("unexpected removed illusts: %+v", res.Data.Illusts)
+		}
+		if res.Data.NextURL == "" {
+			t.Errorf("expected next_url for paged removed bookmarks")
+		}
+	})
+
+	// 7g. Test bookmark export scheduled task status
+	t.Run("GetBookmarkExportTask", func(t *testing.T) {
+		nextRunAt := time.Now().UTC().Add(time.Hour)
+		task := model.ScheduledTask{
+			Name:            model.ScheduledTaskBookmarkExport,
+			Enabled:         true,
+			IntervalSeconds: 86400,
+			NextRunAt:       &nextRunAt,
+			LastStatus:      model.ScheduledTaskStatusSuccess,
+		}
+		if err := gormDB.Create(&task).Error; err != nil {
+			t.Fatalf("failed to seed scheduled task: %v", err)
+		}
+
+		req, _ := http.NewRequest("GET", "/api/pixez/scheduled-tasks/bookmark-export", nil)
+		req.SetBasicAuth("admin", "test12345")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d", w.Code)
+		}
+
+		var res struct {
+			Success bool                `json:"success"`
+			Data    model.ScheduledTask `json:"data"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &res); err != nil {
+			t.Fatalf("failed to unmarshal: %v", err)
+		}
+		if !res.Success || res.Data.Name != model.ScheduledTaskBookmarkExport {
+			t.Errorf("unexpected scheduled task response: %+v", res)
 		}
 	})
 

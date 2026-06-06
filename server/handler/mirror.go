@@ -476,7 +476,7 @@ func GetMirroredNovelDetail(c *gin.Context) {
 // @Failure 400 {object} model.BasicErrorResponse
 // @Failure 404 {object} model.BasicErrorResponse
 // @Failure 500 {object} model.BasicErrorResponse
-// @Router /mirror/v1/novel/text [get]
+// @Router /mirror/webview/v2/novel [get]
 func GetMirroredNovelText(c *gin.Context) {
 	novelIDRaw := c.Query("novel_id")
 	novelID, err := strconv.ParseInt(novelIDRaw, 10, 64)

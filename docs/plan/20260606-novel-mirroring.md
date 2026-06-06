@@ -23,7 +23,7 @@
 | :--- | :--- | :--- |
 | `novel_id` | `INTEGER PRIMARY KEY` | Pixiv 小说 ID |
 | `detail_json` | `TEXT NOT NULL` | Pixiv `/v2/novel/detail` 原始响应 JSON |
-| `text_json` | `TEXT NOT NULL` | Pixiv `/v1/novel/text` 原始响应 JSON（正文文本） |
+| `text_json` | `TEXT NOT NULL` | Pixiv `/webview/v2/novel` 提取的正文文本 JSON |
 | `created_at` | `DATETIME` | 创建时间 |
 | `updated_at` | `DATETIME` | 更新时间 |
 
@@ -36,7 +36,7 @@
 #### [MODIFY] `service/pixiv_utils.go`
 
 新增：
-- `PixivNovelDetail` 与 `PixivNovelText` 结构体（对应 Pixiv `/v2/novel/detail` 与 `/v1/novel/text`）
+- `PixivNovelDetail` 与 `PixivNovelWebContent` 结构体（对应 Pixiv `/v2/novel/detail` 与 `/webview/v2/novel`）
 - `GetNovelDetail(user, novelID)` 方法
 - `GetNovelText(user, novelID)` 方法
 

@@ -23,6 +23,7 @@ import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:pixez/component/illust_card.dart';
 import 'package:pixez/component/pixez_default_header.dart';
 import 'package:pixez/component/sort_group.dart';
+import 'package:pixez/custom/services/removed_bookmark_source.dart';
 import 'package:pixez/exts.dart';
 import 'package:pixez/i18n.dart';
 import 'package:pixez/lighting/lighting_page.dart';
@@ -112,7 +113,7 @@ class _BookmarkPageState extends State<BookmarkPage> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           SortGroup(
-            children: [I18n.of(context).public, I18n.of(context).private],
+            children: [I18n.of(context).public, I18n.of(context).private, '失效'],
             onChange: (index) {
               if (index == 0)
                 setState(() {
@@ -133,6 +134,12 @@ class _BookmarkPageState extends State<BookmarkPage> {
                       currentTag,
                     ),
                   );
+                });
+              if (index == 2)
+                setState(() {
+                  restrict = 'removed';
+                  currentTag = null;
+                  futureGet = RemovedBookmarkSource(userId: widget.id);
                 });
             },
           ),
