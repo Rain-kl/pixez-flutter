@@ -33,6 +33,10 @@ class SyncService {
     return SyncApi.isIllustMirrored(id);
   }
 
+  static Future<Set<int>> batchCheckIllustMirror(List<int> ids) {
+    return SyncApi.batchCheckIllustMirror(ids);
+  }
+
   static Future<Map<String, dynamic>?> mirrorIllust(int id) {
     return SyncApi.mirrorIllust(id);
   }

@@ -3,7 +3,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:pixez/component/painter_avatar.dart';
 import 'package:pixez/component/selectable_html.dart';
+import 'package:pixez/custom/widgets/mirror_badge.dart';
 import 'package:pixez/er/leader.dart';
 import 'package:pixez/exts.dart';
 import 'package:pixez/i18n.dart';
@@ -18,7 +20,6 @@ import 'package:pixez/page/series/illust_series_page.dart';
 import 'package:pixez/page/user/user_store.dart';
 import 'package:pixez/page/user/users_page.dart';
 import 'package:pixez/supportor_plugin.dart';
-import 'package:pixez/component/painter_avatar.dart';
 import 'package:share_plus/share_plus.dart';
 
 class IllustDetailContent extends StatefulWidget {
@@ -183,7 +184,8 @@ class _IllustDetailContentState extends State<IllustDetailContent> {
                     style: TextStyle(
                         fontSize: 12,
                         color: Theme.of(context).colorScheme.onSurface)),
-              )
+              ),
+              MirrorBadge(illustId: data.id),
             ],
           ),
           SizedBox(

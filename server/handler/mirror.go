@@ -103,6 +103,56 @@ func CheckIllustMirror(c *gin.Context) {
 	})
 }
 
+// BatchCheckIllustMirror checks mirror status for multiple illustrations.
+// @Summary Batch check illustration mirror status
+// @Description Accepts a JSON array of illust_ids and returns the set of IDs that have been successfully mirrored. This is a PixEz Sync Backend business operation, not a Pixiv mirror endpoint.
+// @Tags Mirror
+// @Security BasicAuth
+// @Accept json
+// @Produce json
+// @Param body body object true "JSON object with illust_ids array" example({"illust_ids":[123,456,789]})
+// @Success 200 {object} model.APIResponse{data=object}
+// @Failure 400 {object} model.ErrorResponse
+// @Failure 500 {object} model.ErrorResponse
+// @Router /api/pixez/illusts/mirror/batch [post]
+func BatchCheckIllustMirror(c *gin.Context) {
+	var req struct {
+		IllustIDs []int64 `json:"illust_ids"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.RespondBadRequest(c, "invalid request body: expected {\"illust_ids\": [...]}")
+		return
+	}
+	if len(req.IllustIDs) == 0 {
+		response.RespondBadRequest(c, "illust_ids must not be empty")
+		return
+	}
+	if len(req.IllustIDs) > 500 {
+		response.RespondBadRequest(c, "illust_ids must not exceed 500 items")
+		return
+	}
+
+	var tasks []model.MirrorTask
+	if err := db.DB.Where(
+		"task_type = ? AND target_type = ? AND target_id IN ? AND success_count > 0",
+		model.MirrorTaskTypeIllust,
+		model.MirrorTargetIllust,
+		req.IllustIDs,
+	).Find(&tasks).Error; err != nil {
+		response.RespondErrorWithStatus(c, http.StatusInternalServerError, "failed to query mirror tasks")
+		return
+	}
+
+	mirroredIDs := make([]int64, 0, len(tasks))
+	for _, t := range tasks {
+		mirroredIDs = append(mirroredIDs, t.TargetID)
+	}
+
+	response.RespondSuccess(c, gin.H{
+		"mirrored_ids": mirroredIDs,
+	})
+}
+
 // GetMirroredIllustDetail returns a mirrored Pixiv detail response.
 // @Summary Get mirrored Pixiv illustration detail
 // @Description Reads a cached Pixiv /v1/illust/detail response and rewrites pximg URLs to this server's /mirror/pximg path. This endpoint intentionally returns the Pixiv response shape, not the standard PixEz Sync API envelope.

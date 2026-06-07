@@ -17,6 +17,20 @@ import (
 	"gorm.io/gorm"
 )
 
+var shanghaiLoc *time.Location
+
+func init() {
+	var err error
+	shanghaiLoc, err = time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		shanghaiLoc = time.FixedZone("CST", 8*60*60)
+	}
+}
+
+func nowShanghai() time.Time {
+	return time.Now().In(shanghaiLoc)
+}
+
 var bookmarkRestricts = []string{"public", "private"}
 
 const scheduledTaskInitialDelay = 1 * time.Minute
@@ -102,7 +116,7 @@ func (w *BookmarkExportWorker) ensureScheduledTask() {
 		return
 	}
 
-	now := time.Now().UTC()
+	now := nowShanghai()
 	nextRun := now.Add(scheduledTaskInitialDelay)
 	task = model.ScheduledTask{
 		Name:            model.ScheduledTaskBookmarkExport,
@@ -126,9 +140,9 @@ func (w *BookmarkExportWorker) timeUntilNextRun() time.Duration {
 	if task.NextRunAt == nil {
 		return w.Interval
 	}
-	// Normalize to UTC for consistent comparison with SQLite-stored timestamps
-	nextRunUTC := task.NextRunAt.UTC()
-	d := time.Until(nextRunUTC)
+	// Normalize to Shanghai timezone for consistent comparison with SQLite-stored timestamps
+	nextRunShanghai := task.NextRunAt.In(shanghaiLoc)
+	d := nextRunShanghai.Sub(nowShanghai())
 	if d <= 0 {
 		return 0
 	}
@@ -158,7 +172,7 @@ func (w *BookmarkExportWorker) RunOnceAndUpdate() bool {
 func (w *BookmarkExportWorker) runOnceAndUpdateLocked() {
 	w.ensureScheduledTask()
 
-	now := time.Now().UTC()
+	now := nowShanghai()
 	nextRun := now.Add(w.Interval)
 
 	db.DB.Model(&model.ScheduledTask{}).
@@ -177,7 +191,7 @@ func (w *BookmarkExportWorker) runOnceAndUpdateLocked() {
 	updates := map[string]any{
 		"last_duration_ms": elapsed.Milliseconds(),
 		"next_run_at":      nextRun,
-		"updated_at":       time.Now().UTC(),
+		"updated_at":       nowShanghai(),
 	}
 	if err != nil {
 		updates["last_status"] = model.ScheduledTaskStatusFailed

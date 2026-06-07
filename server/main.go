@@ -70,6 +70,7 @@ func main() {
 		api.POST("/scheduled-tasks/bookmark-export/run", handler.RunBookmarkExportTask)
 		api.POST("/illusts/:illust_id/mirror", handler.MirrorIllust)
 		api.GET("/illusts/:illust_id/mirror", handler.CheckIllustMirror)
+		api.POST("/illusts/mirror/batch", handler.BatchCheckIllustMirror)
 		api.POST("/novels/:novel_id/mirror", handler.MirrorNovel)
 		api.GET("/novels/:novel_id/mirror", handler.CheckNovelMirror)
 	}

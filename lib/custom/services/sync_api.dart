@@ -236,6 +236,26 @@ class SyncApi {
     return data?['mirrored'] == true;
   }
 
+  static Future<Set<int>> batchCheckIllustMirror(List<int> ids) async {
+    if (!SyncConfig.enabled || SyncConfig.serverUrl.isEmpty || ids.isEmpty) {
+      return {};
+    }
+    try {
+      final response = await getDioClient().post(
+        '/api/pixez/illusts/mirror/batch',
+        data: {'illust_ids': ids},
+      );
+      if (response.statusCode == 200 && response.data?['success'] == true) {
+        final List<dynamic> mirroredIds =
+            response.data['data']['mirrored_ids'] ?? [];
+        return mirroredIds.map((e) => e as int).toSet();
+      }
+      return {};
+    } catch (_) {
+      return {};
+    }
+  }
+
   static Future<Map<String, dynamic>?> mirrorIllust(int id) async {
     if (!SyncConfig.enabled || SyncConfig.serverUrl.isEmpty) {
       return null;

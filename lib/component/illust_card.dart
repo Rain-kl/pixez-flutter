@@ -23,6 +23,7 @@ import 'package:pixez/component/null_hero.dart';
 import 'package:pixez/component/pixiv_image.dart';
 import 'package:pixez/component/star_icon.dart';
 import 'package:pixez/constants.dart';
+import 'package:pixez/custom/services/mirror_status_cache.dart';
 import 'package:pixez/er/illust_cacher.dart';
 import 'package:pixez/er/lprinter.dart';
 import 'package:pixez/er/prefer.dart';
@@ -65,6 +66,10 @@ class _IllustCardState extends State<IllustCard> {
     _lightingStore = widget.lightingStore;
     tag = this.hashCode.toString();
     super.initState();
+    final id = store.illusts?.id;
+    if (id != null) {
+      MirrorStatusCache.markForCheck(id);
+    }
   }
 
   @override
@@ -349,7 +354,7 @@ class _IllustCardState extends State<IllustCard> {
           Padding(
             padding: const EdgeInsets.only(
               left: 8.0,
-              right: 36.0,
+              right: 52.0,
               top: 4,
               bottom: 4,
             ),
@@ -375,67 +380,89 @@ class _IllustCardState extends State<IllustCard> {
           ),
           Align(
             alignment: Alignment.centerRight,
-            child: GestureDetector(
-              child: Observer(
-                builder: (_) {
-                  return StarIcon(state: store.state);
-                },
-              ),
-              onTap: () async {
-                if (userSetting.saveAfterStar && (store.state == 0)) {
-                  saveStore.saveImage(store.illusts!);
-                }
-                // TODO: 添加配置项 开关和过滤器
-                final List<String>? tags;
-                if (userSetting.autoTagWhenStar) {
-                  final filters = [RegExp(r"\d+users入り")];
-                  tags = store.illusts?.tags
-                      .map((tag) => tag.name)
-                      .where(
-                        (tag) => !filters.any((regex) => regex.hasMatch(tag)),
-                      )
-                      .toList();
-                } else {
-                  tags = null;
-                }
-                store.star(
-                  restrict: userSetting.defaultPrivateLike
-                      ? "private"
-                      : "public",
-                  tags: tags,
-                );
-                if (userSetting.followAfterStar) {
-                  bool success = await store.followAfterStar();
-                  if (success) {
-                    BotToast.showText(
-                      text:
-                          "${store.illusts!.user.name} ${I18n.of(context).followed}",
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ValueListenableBuilder<int>(
+                  valueListenable: MirrorStatusCache.version,
+                  builder: (_, __, ___) {
+                    final id = store.illusts?.id;
+                    if (id != null && MirrorStatusCache.isMirrored(id)) {
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 2.0),
+                        child: Icon(
+                          Icons.cloud_done,
+                          color: Colors.green,
+                          size: 14.0,
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+                GestureDetector(
+                  child: Observer(
+                    builder: (_) {
+                      return StarIcon(state: store.state);
+                    },
+                  ),
+                  onTap: () async {
+                    if (userSetting.saveAfterStar && (store.state == 0)) {
+                      saveStore.saveImage(store.illusts!);
+                    }
+                    // TODO: 添加配置项 开关和过滤器
+                    final List<String>? tags;
+                    if (userSetting.autoTagWhenStar) {
+                      final filters = [RegExp(r"\d+users入り")];
+                      tags = store.illusts?.tags
+                          .map((tag) => tag.name)
+                          .where(
+                            (tag) => !filters.any((regex) => regex.hasMatch(tag)),
+                          )
+                          .toList();
+                    } else {
+                      tags = null;
+                    }
+                    store.star(
+                      restrict: userSetting.defaultPrivateLike
+                          ? "private"
+                          : "public",
+                      tags: tags,
                     );
-                  }
-                }
-              },
-              onLongPress: () async {
-                final result = await showModalBottomSheet(
-                  context: context,
-                  clipBehavior: Clip.hardEdge,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(16),
-                    ),
-                  ),
-                  constraints: BoxConstraints.expand(
-                    height: MediaQuery.of(context).size.height * .618,
-                  ),
-                  isScrollControlled: true,
-                  builder: (_) => TagForIllustPage(id: store.illusts!.id),
-                );
-                if (result?.isNotEmpty ?? false) {
-                  LPrinter.d(result);
-                  String restrict = result['restrict'];
-                  List<String>? tags = result['tags'];
-                  store.star(restrict: restrict, tags: tags, force: true);
-                }
-              },
+                    if (userSetting.followAfterStar) {
+                      bool success = await store.followAfterStar();
+                      if (success) {
+                        BotToast.showText(
+                          text:
+                              "${store.illusts!.user.name} ${I18n.of(context).followed}",
+                        );
+                      }
+                    }
+                  },
+                  onLongPress: () async {
+                    final result = await showModalBottomSheet(
+                      context: context,
+                      clipBehavior: Clip.hardEdge,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(16),
+                        ),
+                      ),
+                      constraints: BoxConstraints.expand(
+                        height: MediaQuery.of(context).size.height * .618,
+                      ),
+                      isScrollControlled: true,
+                      builder: (_) => TagForIllustPage(id: store.illusts!.id),
+                    );
+                    if (result?.isNotEmpty ?? false) {
+                      LPrinter.d(result);
+                      String restrict = result['restrict'];
+                      List<String>? tags = result['tags'];
+                      store.star(restrict: restrict, tags: tags, force: true);
+                    }
+                  },
+                ),
+              ],
             ),
           ),
         ],
