@@ -46,6 +46,11 @@ func main() {
 	handler.BookmarkExportWorker = bookmarkExportWorker
 	bookmarkExportWorker.Start()
 
+	// Novel bookmark export worker
+	novelBookmarkExportWorker := service.NewNovelBookmarkExportWorker(cfg.BookmarkExportInterval)
+	handler.NovelBookmarkExportWorker = novelBookmarkExportWorker
+	novelBookmarkExportWorker.Start()
+
 	// Bookmark mirror scheduler — auto-enqueue bookmarks for mirroring
 	bookmarkMirrorScheduler := service.NewBookmarkMirrorScheduler(mirrorWorker)
 	bookmarkMirrorScheduler.Start()
@@ -72,6 +77,8 @@ func main() {
 		api.GET("/scheduled-tasks", handler.ListScheduledTasks)
 		api.GET("/scheduled-tasks/bookmark-export", handler.GetBookmarkExportTask)
 		api.POST("/scheduled-tasks/bookmark-export/run", handler.RunBookmarkExportTask)
+		api.GET("/scheduled-tasks/novel-bookmark-export", handler.GetNovelBookmarkExportTask)
+		api.POST("/scheduled-tasks/novel-bookmark-export/run", handler.RunNovelBookmarkExportTask)
 		api.POST("/illusts/:illust_id/mirror", handler.MirrorIllust)
 		api.GET("/illusts/:illust_id/mirror", handler.CheckIllustMirror)
 		api.POST("/illusts/mirror/batch", handler.BatchCheckIllustMirror)

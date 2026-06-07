@@ -20,6 +20,7 @@ import 'package:flutter/foundation.dart';
 import 'package:html/parser.dart';
 import 'package:dio/dio.dart';
 import 'package:mobx/mobx.dart';
+import 'package:pixez/custom/services/novel_mirror_service.dart';
 import 'package:pixez/er/lprinter.dart';
 import 'package:pixez/main.dart';
 import 'package:pixez/models/novel_recom_response.dart';
@@ -89,7 +90,11 @@ abstract class _NovelStoreBase with Store {
       fetchOffset();
     } catch (e) {
       print(e);
-      errorMessage = e.toString();
+      // Try mirror fallback before giving up.
+      final mirrorOk = await NovelMirrorService.fetchFromMirror(this);
+      if (!mirrorOk) {
+        errorMessage = e.toString();
+      }
     }
   }
 

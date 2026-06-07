@@ -70,3 +70,37 @@ type BookmarkIllust struct {
 }
 
 func (BookmarkIllust) TableName() string { return "bookmark_illusts" }
+
+// BookmarkNovel stores the latest known full Pixiv bookmark novel payload.
+type BookmarkNovel struct {
+	ID               uint       `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
+	PixivUserID      string     `gorm:"column:pixiv_user_id;not null;uniqueIndex:idx_bookmark_novel_user_restrict_novel" json:"pixiv_user_id"`
+	Restrict         string     `gorm:"column:restrict;not null;uniqueIndex:idx_bookmark_novel_user_restrict_novel" json:"restrict"`
+	NovelID          int64      `gorm:"column:novel_id;not null;uniqueIndex:idx_bookmark_novel_user_restrict_novel" json:"novel_id"`
+	Title            string     `gorm:"column:title" json:"title"`
+	Caption          string     `gorm:"column:caption" json:"caption"`
+	UserID           int64      `gorm:"column:user_id" json:"user_id"`
+	UserName         string     `gorm:"column:user_name" json:"user_name"`
+	TextLength       int        `gorm:"column:text_length" json:"text_length"`
+	XRestrict        int        `gorm:"column:x_restrict" json:"x_restrict"`
+	TotalView        int        `gorm:"column:total_view" json:"total_view"`
+	TotalBookmarks   int        `gorm:"column:total_bookmarks" json:"total_bookmarks"`
+	IsOriginal       bool       `gorm:"column:is_original" json:"is_original"`
+	Visible          bool       `gorm:"column:visible" json:"visible"`
+	IsMuted          bool       `gorm:"column:is_muted" json:"is_muted"`
+	NovelAIType      int        `gorm:"column:novel_ai_type" json:"novel_ai_type"`
+	SeriesID         *int64     `gorm:"column:series_id" json:"series_id"`
+	SeriesTitle      *string    `gorm:"column:series_title" json:"series_title"`
+	CoverURL         string     `gorm:"column:cover_url" json:"cover_url"`
+	NovelJSON        string     `gorm:"column:novel_json;not null" json:"novel_json"`
+	LastExportRunID  string     `gorm:"column:last_export_run_id;not null;index" json:"last_export_run_id"`
+	LastSeenAt       time.Time  `gorm:"column:last_seen_at;not null" json:"last_seen_at"`
+	MirrorStatus     int        `gorm:"column:mirror_status;not null;default:0;index" json:"mirror_status"`
+	MirrorRetryCount int        `gorm:"column:mirror_retry_count;not null;default:0" json:"mirror_retry_count"`
+	Removed          bool       `gorm:"column:removed;not null;default:false;index" json:"removed"`
+	RemovedAt        *time.Time `gorm:"column:removed_at" json:"removed_at"`
+	CreatedAt        time.Time  `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt        time.Time  `gorm:"column:updated_at" json:"updated_at"`
+}
+
+func (BookmarkNovel) TableName() string { return "bookmark_novels" }

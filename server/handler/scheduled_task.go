@@ -14,6 +14,7 @@ import (
 )
 
 var BookmarkExportWorker *service.BookmarkExportWorker
+var NovelBookmarkExportWorker *service.NovelBookmarkExportWorker
 
 // ListScheduledTasks retrieves all scheduled tasks and their status.
 // @Summary List scheduled tasks
@@ -77,6 +78,36 @@ func RunBookmarkExportTask(c *gin.Context) {
 	}
 	response.RespondSuccess(c, gin.H{
 		"name":   model.ScheduledTaskBookmarkExport,
+		"status": model.ScheduledTaskStatusRunning,
+	})
+}
+
+// GetNovelBookmarkExportTask retrieves the novel bookmark export task status.
+func GetNovelBookmarkExportTask(c *gin.Context) {
+	var task model.ScheduledTask
+	if err := db.DB.First(&task, "name = ?", model.ScheduledTaskNovelBookmarkExport).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.RespondErrorWithStatus(c, http.StatusNotFound, "scheduled task not found")
+			return
+		}
+		response.RespondErrorWithStatus(c, http.StatusInternalServerError, "failed to fetch scheduled task")
+		return
+	}
+	response.RespondSuccess(c, task)
+}
+
+// RunNovelBookmarkExportTask triggers the novel bookmark export immediately.
+func RunNovelBookmarkExportTask(c *gin.Context) {
+	if NovelBookmarkExportWorker == nil {
+		response.RespondErrorWithStatus(c, http.StatusInternalServerError, "novel bookmark export worker is not configured")
+		return
+	}
+	if !NovelBookmarkExportWorker.RunOnceAsync() {
+		response.RespondErrorWithStatus(c, http.StatusConflict, "novel bookmark export task is already running")
+		return
+	}
+	response.RespondSuccess(c, gin.H{
+		"name":   model.ScheduledTaskNovelBookmarkExport,
 		"status": model.ScheduledTaskStatusRunning,
 	})
 }

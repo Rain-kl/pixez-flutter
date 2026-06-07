@@ -217,6 +217,68 @@ func (u *PixivUtils) InitialBookmarkIllustURL(userID string, restrict string) st
 	return "https://" + pixivAPIHost + "/v1/user/bookmarks/illust?" + values.Encode()
 }
 
+// PixivBookmarkNovelResponse mirrors the Pixiv /v1/user/bookmarks/novel response.
+type PixivBookmarkNovelResponse struct {
+	Novels  []PixivBookmarkNovel `json:"novels"`
+	NextURL string               `json:"next_url"`
+}
+
+// PixivBookmarkNovel mirrors a single novel in the bookmark API response.
+type PixivBookmarkNovel struct {
+	ID         int64  `json:"id"`
+	Title      string `json:"title"`
+	Caption    string `json:"caption"`
+	Restrict   int    `json:"restrict"`
+	XRestrict  int    `json:"x_restrict"`
+	IsOriginal bool   `json:"is_original"`
+	ImageUrls  struct {
+		SquareMedium string `json:"square_medium"`
+		Medium       string `json:"medium"`
+		Large        string `json:"large"`
+	} `json:"image_urls"`
+	CreateDate     string `json:"create_date"`
+	TextLength     int    `json:"text_length"`
+	TotalView      int    `json:"total_view"`
+	TotalBookmarks int    `json:"total_bookmarks"`
+	IsBookmarked   bool   `json:"is_bookmarked"`
+	Visible        bool   `json:"visible"`
+	IsMuted        bool   `json:"is_muted"`
+	NovelAIType    int    `json:"novel_ai_type"`
+	User           struct {
+		ID               int64  `json:"id"`
+		Name             string `json:"name"`
+		Account          string `json:"account"`
+		ProfileImageUrls struct {
+			Medium string `json:"medium"`
+		} `json:"profile_image_urls"`
+		IsFollowed      bool `json:"is_followed"`
+		IsAcceptRequest bool `json:"is_accept_request"`
+	} `json:"user"`
+	Tags []struct {
+		Name           string  `json:"name"`
+		TranslatedName *string `json:"translated_name"`
+	} `json:"tags"`
+	Series *struct {
+		ID    int64  `json:"id"`
+		Title string `json:"title"`
+	} `json:"series"`
+	PageCount     int `json:"page_count"`
+	TotalComments int `json:"total_comments"`
+}
+
+func (u *PixivUtils) GetBookmarkNovels(user model.PixivUser, reqURL string) ([]byte, PixivBookmarkNovelResponse, error) {
+	var payload PixivBookmarkNovelResponse
+	data, err := u.GetJSONWithAuth(user, reqURL, &payload)
+	return data, payload, err
+}
+
+func (u *PixivUtils) InitialBookmarkNovelURL(userID string, restrict string) string {
+	values := url.Values{}
+	values.Set("user_id", userID)
+	values.Set("restrict", restrict)
+	return "https://" + pixivAPIHost + "/v1/user/bookmarks/novel?" + values.Encode()
+}
+
 func (u *PixivUtils) GetJSONWithAuth(user model.PixivUser, reqURL string, target any) ([]byte, error) {
 	data, status, err := u.doPixivAPIGet(reqURL, user.AccessToken)
 	if err == nil && status == http.StatusOK {

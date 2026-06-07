@@ -7,6 +7,7 @@ const (
 	ScheduledTaskBookmarkMirrorNew      = "bookmark_mirror_new"
 	ScheduledTaskBookmarkMirrorRetry    = "bookmark_mirror_retry"
 	ScheduledTaskBookmarkMirrorRetryImg = "bookmark_mirror_retry_img"
+	ScheduledTaskNovelBookmarkExport    = "novel_bookmark_export"
 
 	ScheduledTaskStatusRunning = "running"
 	ScheduledTaskStatusSuccess = "success"
