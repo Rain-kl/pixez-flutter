@@ -305,6 +305,45 @@ paths:
       summary: Enqueue illustration mirror task
       tags:
       - Mirror
+  /api/pixez/illusts/mirror/batch:
+    post:
+      consumes:
+      - application/json
+      description: Accepts a JSON array of illust_ids and returns the set of IDs that
+        have been successfully mirrored. This is a PixEz Sync Backend business operation,
+        not a Pixiv mirror endpoint.
+      parameters:
+      - description: JSON object with illust_ids array
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      security:
+      - BasicAuth: []
+      summary: Batch check illustration mirror status
+      tags:
+      - Mirror
   /api/pixez/novels/{novel_id}/mirror:
     get:
       description: Returns the latest mirror task status for a Pixiv novel.
@@ -371,6 +410,40 @@ paths:
       security:
       - BasicAuth: []
       summary: Enqueue novel mirror task
+      tags:
+      - Mirror
+  /api/pixez/novels/mirror/batch:
+    post:
+      consumes:
+      - application/json
+      description: Accepts a JSON array of novel_ids and returns the set of IDs that
+        have been successfully mirrored.
+      parameters:
+      - description: JSON object with novel_ids array
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.ErrorResponse'
+      security:
+      - BasicAuth: []
+      summary: Batch check novel mirror status
       tags:
       - Mirror
   /api/pixez/ping:

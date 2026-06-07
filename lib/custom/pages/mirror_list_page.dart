@@ -45,7 +45,8 @@ class _MirrorListPageState extends State<MirrorListPage>
 
   bool get _isIllustTab => _tabController.index == 0;
 
-  Set<int> get _currentSelection => _isIllustTab ? _selectedIllusts : _selectedNovels;
+  Set<int> get _currentSelection =>
+      _isIllustTab ? _selectedIllusts : _selectedNovels;
 
   Future<void> _loadData() async {
     if (_isLoading) return;
@@ -58,11 +59,15 @@ class _MirrorListPageState extends State<MirrorListPage>
       if (mounted) {
         setState(() {
           if (results[0] != null) {
-            _illustItems = List<Map<String, dynamic>>.from(results[0]!['items'] ?? []);
+            _illustItems = List<Map<String, dynamic>>.from(
+              results[0]!['items'] ?? [],
+            );
             _illustTotal = results[0]!['total'] ?? 0;
           }
           if (results[1] != null) {
-            _novelItems = List<Map<String, dynamic>>.from(results[1]!['items'] ?? []);
+            _novelItems = List<Map<String, dynamic>>.from(
+              results[1]!['items'] ?? [],
+            );
             _novelTotal = results[1]!['total'] ?? 0;
           }
         });
@@ -135,7 +140,10 @@ class _MirrorListPageState extends State<MirrorListPage>
         title: const Text('确认删除'),
         content: Text('确定要删除选中的 ${selection.length} 条镜像数据吗？'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('删除', style: TextStyle(color: Colors.red)),
@@ -148,7 +156,10 @@ class _MirrorListPageState extends State<MirrorListPage>
     final cancel = BotToast.showLoading();
     try {
       final targetType = _isIllustTab ? 'illust' : 'novel';
-      final ok = await SyncApi.batchDeleteMirrored(targetType, selection.toList());
+      final ok = await SyncApi.batchDeleteMirrored(
+        targetType,
+        selection.toList(),
+      );
       if (ok) {
         BotToast.showText(text: '已删除 ${selection.length} 条');
         selection.clear();
@@ -184,7 +195,8 @@ class _MirrorListPageState extends State<MirrorListPage>
       } else {
         selection.clear();
         for (final item in items) {
-          final id = (_isIllustTab ? item['illust_id'] : item['novel_id']) as int;
+          final id =
+              (_isIllustTab ? item['illust_id'] : item['novel_id']) as int;
           selection.add(id);
         }
       }
@@ -234,40 +246,51 @@ class _MirrorListPageState extends State<MirrorListPage>
             child: _isLoading && items.isEmpty
                 ? const Center(child: CircularProgressIndicator())
                 : items.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.cloud_off, size: 48, color: theme.hintColor),
-                            const SizedBox(height: 8),
-                            Text('暂无镜像数据', style: TextStyle(color: theme.hintColor)),
-                          ],
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.cloud_off, size: 48, color: theme.hintColor),
+                        const SizedBox(height: 8),
+                        Text(
+                          '暂无镜像数据',
+                          style: TextStyle(color: theme.hintColor),
                         ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _refreshCurrentTab,
-                        child: ListView.builder(
-                          itemCount: items.length,
-                          itemBuilder: (context, index) {
-                            final item = items[index];
-                            final id = (_isIllustTab ? item['illust_id'] : item['novel_id']) as int;
-                            final status = item['status'] as String? ?? '';
-                            final hasMirror = item['has_mirror'] as bool? ?? false;
-                            final updatedAt = item['updated_at'] as String? ?? '';
-                            final selected = _currentSelection.contains(id);
+                      ],
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: _refreshCurrentTab,
+                    child: ListView.builder(
+                      itemCount: items.length,
+                      itemBuilder: (context, index) {
+                        final item = items[index];
+                        final id =
+                            (_isIllustTab
+                                    ? item['illust_id']
+                                    : item['novel_id'])
+                                as int;
+                        final status = item['status'] as String? ?? '';
+                        final hasMirror = item['has_mirror'] as bool? ?? false;
+                        final updatedAt = item['updated_at'] as String? ?? '';
+                        final title = item['title'] as String? ?? '';
+                        final userName = item['user_name'] as String? ?? '';
+                        final selected = _currentSelection.contains(id);
 
-                            return _buildListItem(
-                              context: context,
-                              id: id,
-                              status: status,
-                              hasMirror: hasMirror,
-                              updatedAt: updatedAt,
-                              selected: selected,
-                              type: _isIllustTab ? 'illust' : 'novel',
-                            );
-                          },
-                        ),
-                      ),
+                        return _buildListItem(
+                          context: context,
+                          id: id,
+                          status: status,
+                          hasMirror: hasMirror,
+                          updatedAt: updatedAt,
+                          selected: selected,
+                          type: _isIllustTab ? 'illust' : 'novel',
+                          title: title,
+                          userName: userName,
+                        );
+                      },
+                    ),
+                  ),
           ),
           if (totalPages > 1)
             Padding(
@@ -277,12 +300,16 @@ class _MirrorListPageState extends State<MirrorListPage>
                 children: [
                   IconButton(
                     icon: const Icon(Icons.chevron_left),
-                    onPressed: currentPage > 1 ? () => _goPage(currentPage - 1) : null,
+                    onPressed: currentPage > 1
+                        ? () => _goPage(currentPage - 1)
+                        : null,
                   ),
                   Text('$currentPage / $totalPages'),
                   IconButton(
                     icon: const Icon(Icons.chevron_right),
-                    onPressed: currentPage < totalPages ? () => _goPage(currentPage + 1) : null,
+                    onPressed: currentPage < totalPages
+                        ? () => _goPage(currentPage + 1)
+                        : null,
                   ),
                 ],
               ),
@@ -317,7 +344,9 @@ class _MirrorListPageState extends State<MirrorListPage>
       );
     } else {
       Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => NovelViewerPage(id: id)),
+        MaterialPageRoute(
+          builder: (_) => NovelViewerPage(id: id, forceMirrorSource: true),
+        ),
       );
     }
   }
@@ -330,6 +359,8 @@ class _MirrorListPageState extends State<MirrorListPage>
     required String updatedAt,
     required bool selected,
     required String type,
+    required String title,
+    required String userName,
   }) {
     final theme = Theme.of(context);
 
@@ -365,14 +396,15 @@ class _MirrorListPageState extends State<MirrorListPage>
 
     Widget tile = ListTile(
       leading: _selectMode
-          ? Checkbox(
-              value: selected,
-              onChanged: (_) => _toggleSelect(id),
-            )
+          ? Checkbox(value: selected, onChanged: (_) => _toggleSelect(id))
           : Icon(statusIcon, color: statusColor),
       title: Text(
-        type == 'illust' ? '插画 #$id' : '小说 #$id',
+        title.isNotEmpty
+            ? (userName.isNotEmpty ? '$title - $userName' : title)
+            : (type == 'illust' ? '插画 #$id' : '小说 #$id'),
         style: const TextStyle(fontWeight: FontWeight.w500),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
       subtitle: Text(
         '$statusText  ·  ${updatedAt.replaceAll('T', ' ').substring(0, updatedAt.length > 19 ? 19 : updatedAt.length)}',
@@ -389,7 +421,11 @@ class _MirrorListPageState extends State<MirrorListPage>
                     onPressed: () => _navigateToDetail(id, type),
                   ),
                 IconButton(
-                  icon: Icon(Icons.delete_outline, color: Colors.red[300], size: 20),
+                  icon: Icon(
+                    Icons.delete_outline,
+                    color: Colors.red[300],
+                    size: 20,
+                  ),
                   tooltip: '删除',
                   onPressed: () => _deleteSingle(id, type),
                 ),

@@ -22,10 +22,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:mobx/mobx.dart';
+import 'package:path/path.dart' as Path;
 import 'package:path_provider/path_provider.dart';
 import 'package:pixez/component/painter_avatar.dart';
 import 'package:pixez/component/pixiv_image.dart';
 import 'package:pixez/component/selectable_html.dart';
+import 'package:pixez/custom/services/novel_mirror_service.dart';
+import 'package:pixez/custom/widgets/novel_mirror_badge.dart';
+import 'package:pixez/custom/widgets/novel_mirror_list_tile.dart';
 import 'package:pixez/er/leader.dart';
 import 'package:pixez/er/lprinter.dart';
 import 'package:pixez/exts.dart';
@@ -44,15 +48,18 @@ import 'package:pixez/page/novel/viewer/novel_store.dart';
 import 'package:pixez/saf_plugin.dart';
 import 'package:pixez/supportor_plugin.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:path/path.dart' as Path;
-import 'package:pixez/custom/widgets/novel_mirror_list_tile.dart';
 
 class NovelViewerPage extends StatefulWidget {
   final int id;
   final NovelStore? novelStore;
+  final bool forceMirrorSource;
 
-  const NovelViewerPage({Key? key, required this.id, this.novelStore})
-    : super(key: key);
+  const NovelViewerPage({
+    Key? key,
+    required this.id,
+    this.novelStore,
+    this.forceMirrorSource = false,
+  }) : super(key: key);
 
   @override
   _NovelViewerPageState createState() => _NovelViewerPageState();
@@ -84,9 +91,20 @@ class _NovelViewerPageState extends State<NovelViewerPage> {
       LPrinter.d("jump to ${_novelStore.bookedOffset}");
       _controller?.jumpTo(_novelStore.bookedOffset);
     });
-    _novelStore.fetch();
+    _fetchNovel();
     super.initState();
     initMethod();
+  }
+
+  Future<void> _fetchNovel() async {
+    if (widget.forceMirrorSource) {
+      final loaded = await NovelMirrorService.fetchFromMirror(_novelStore);
+      if (loaded) {
+        BotToast.showText(text: '已使用镜像源加载');
+      }
+      return;
+    }
+    _novelStore.fetch();
   }
 
   @override
@@ -165,7 +183,7 @@ class _NovelViewerPageState extends State<NovelViewerPage> {
             ),
             TextButton(
               onPressed: () {
-                _novelStore.fetch();
+                _fetchNovel();
               },
               child: Text(I18n.of(context).retry),
             ),
@@ -589,6 +607,7 @@ class _NovelViewerPageState extends State<NovelViewerPage> {
             "${novel.totalView}",
             style: TextStyle(color: Theme.of(context).colorScheme.primary),
           ),
+          NovelMirrorBadge(novelId: widget.id),
         ],
       ),
     );

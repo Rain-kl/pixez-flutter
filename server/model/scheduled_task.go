@@ -3,11 +3,13 @@ package model
 import "time"
 
 const (
-	ScheduledTaskBookmarkExport         = "bookmark_export"
-	ScheduledTaskBookmarkMirrorNew      = "bookmark_mirror_new"
-	ScheduledTaskBookmarkMirrorRetry    = "bookmark_mirror_retry"
-	ScheduledTaskBookmarkMirrorRetryImg = "bookmark_mirror_retry_img"
-	ScheduledTaskNovelBookmarkExport    = "novel_bookmark_export"
+	ScheduledTaskBookmarkExport               = "bookmark_export"
+	ScheduledTaskIllustBookmarkMirrorNew      = "illust_bookmark_mirror_new"
+	ScheduledTaskIllustBookmarkMirrorRetry    = "illust_bookmark_mirror_retry"
+	ScheduledTaskIllustBookmarkMirrorRetryImg = "illust_bookmark_mirror_retry_img"
+	ScheduledTaskNovelBookmarkExport          = "novel_bookmark_export"
+	ScheduledTaskNovelBookmarkMirrorNew       = "novel_bookmark_mirror_new"
+	ScheduledTaskNovelBookmarkMirrorRetry     = "novel_bookmark_mirror_retry"
 
 	ScheduledTaskStatusRunning = "running"
 	ScheduledTaskStatusSuccess = "success"

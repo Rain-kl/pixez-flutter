@@ -51,6 +51,8 @@ func (s *BookmarkMirrorScheduler) Start() {
 	go s.newLoop()
 	go s.retryLoop()
 	go s.retryImgLoop()
+	go s.novelNewLoop()
+	go s.novelRetryLoop()
 }
 
 func (s *BookmarkMirrorScheduler) Stop() {
@@ -62,10 +64,10 @@ func (s *BookmarkMirrorScheduler) Stop() {
 // ---------------------------------------------------------------------------
 
 func (s *BookmarkMirrorScheduler) newLoop() {
-	s.ensureScheduledTask(model.ScheduledTaskBookmarkMirrorNew, s.NewInterval)
+	s.ensureScheduledTask(model.ScheduledTaskIllustBookmarkMirrorNew, s.NewInterval)
 
 	for {
-		wait := s.timeUntilNextRun(model.ScheduledTaskBookmarkMirrorNew, s.NewInterval)
+		wait := s.timeUntilNextRun(model.ScheduledTaskIllustBookmarkMirrorNew, s.NewInterval)
 		slog.Debug("Bookmark mirror (new) scheduled", "wait", wait.Round(time.Second))
 		timer := time.NewTimer(wait)
 		select {
@@ -84,7 +86,7 @@ func (s *BookmarkMirrorScheduler) runNewCycle() {
 	}
 	defer s.newRunMu.Unlock()
 
-	name := model.ScheduledTaskBookmarkMirrorNew
+	name := model.ScheduledTaskIllustBookmarkMirrorNew
 	s.updateScheduledStart(name)
 
 	start := time.Now()
@@ -157,10 +159,10 @@ func (s *BookmarkMirrorScheduler) enqueueNewMirrors() (int, error) {
 // ---------------------------------------------------------------------------
 
 func (s *BookmarkMirrorScheduler) retryLoop() {
-	s.ensureScheduledTask(model.ScheduledTaskBookmarkMirrorRetry, s.RetryInterval)
+	s.ensureScheduledTask(model.ScheduledTaskIllustBookmarkMirrorRetry, s.RetryInterval)
 
 	for {
-		wait := s.timeUntilNextRun(model.ScheduledTaskBookmarkMirrorRetry, s.RetryInterval)
+		wait := s.timeUntilNextRun(model.ScheduledTaskIllustBookmarkMirrorRetry, s.RetryInterval)
 		slog.Debug("Bookmark mirror (retry) scheduled", "wait", wait.Round(time.Second))
 		timer := time.NewTimer(wait)
 		select {
@@ -179,7 +181,7 @@ func (s *BookmarkMirrorScheduler) runRetryCycle() {
 	}
 	defer s.retryRunMu.Unlock()
 
-	name := model.ScheduledTaskBookmarkMirrorRetry
+	name := model.ScheduledTaskIllustBookmarkMirrorRetry
 	s.updateScheduledStart(name)
 
 	start := time.Now()
@@ -243,10 +245,10 @@ func (s *BookmarkMirrorScheduler) retryFailedMirrors() (int, error) {
 // ---------------------------------------------------------------------------
 
 func (s *BookmarkMirrorScheduler) retryImgLoop() {
-	s.ensureScheduledTask(model.ScheduledTaskBookmarkMirrorRetryImg, s.RetryImgInterval)
+	s.ensureScheduledTask(model.ScheduledTaskIllustBookmarkMirrorRetryImg, s.RetryImgInterval)
 
 	for {
-		wait := s.timeUntilNextRun(model.ScheduledTaskBookmarkMirrorRetryImg, s.RetryImgInterval)
+		wait := s.timeUntilNextRun(model.ScheduledTaskIllustBookmarkMirrorRetryImg, s.RetryImgInterval)
 		slog.Debug("Bookmark mirror (retry images) scheduled", "wait", wait.Round(time.Second))
 		timer := time.NewTimer(wait)
 		select {
@@ -265,7 +267,7 @@ func (s *BookmarkMirrorScheduler) runRetryImgCycle() {
 	}
 	defer s.retryImgRunMu.Unlock()
 
-	name := model.ScheduledTaskBookmarkMirrorRetryImg
+	name := model.ScheduledTaskIllustBookmarkMirrorRetryImg
 	s.updateScheduledStart(name)
 
 	start := time.Now()
@@ -463,4 +465,230 @@ func (s *BookmarkMirrorScheduler) updateScheduledEnd(name string, elapsed time.D
 		updates["last_error"] = ""
 	}
 	db.DB.Model(&model.ScheduledTask{}).Where("name = ?", name).Updates(updates)
+}
+
+// ---------------------------------------------------------------------------
+// Novel new mirror loop — every 1 minute
+// ---------------------------------------------------------------------------
+
+func (s *BookmarkMirrorScheduler) novelNewLoop() {
+	s.ensureScheduledTask(model.ScheduledTaskNovelBookmarkMirrorNew, s.NewInterval)
+
+	for {
+		wait := s.timeUntilNextRun(model.ScheduledTaskNovelBookmarkMirrorNew, s.NewInterval)
+		slog.Debug("Novel bookmark mirror (new) scheduled", "wait", wait.Round(time.Second))
+		timer := time.NewTimer(wait)
+		select {
+		case <-s.stopCh:
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
+		s.runNovelNewCycle()
+	}
+}
+
+func (s *BookmarkMirrorScheduler) runNovelNewCycle() {
+	if !s.newRunMu.TryLock() {
+		return
+	}
+	defer s.newRunMu.Unlock()
+
+	name := model.ScheduledTaskNovelBookmarkMirrorNew
+	s.updateScheduledStart(name)
+
+	start := time.Now()
+	enqueued, err := s.enqueueNewNovelMirrors()
+	elapsed := time.Since(start)
+
+	s.updateScheduledEnd(name, elapsed, enqueued, err)
+	if err != nil {
+		slog.Error("Novel bookmark mirror (new) cycle failed", "error", err, "elapsed", elapsed.Round(time.Millisecond))
+	} else if enqueued > 0 {
+		slog.Info("Novel bookmark mirror (new) cycle completed", "enqueued", enqueued, "elapsed", elapsed.Round(time.Millisecond))
+	}
+}
+
+func (s *BookmarkMirrorScheduler) enqueueNewNovelMirrors() (int, error) {
+	var bookmarks []model.BookmarkNovel
+	if err := db.DB.Where(
+		"removed = ? AND mirror_status = ?",
+		false,
+		model.BookmarkMirrorNone,
+	).Order("last_seen_at asc").
+		Limit(mirrorBatchSize).
+		Find(&bookmarks).Error; err != nil {
+		return 0, fmt.Errorf("query unmirrored novel bookmarks: %w", err)
+	}
+	if len(bookmarks) == 0 {
+		return 0, nil
+	}
+
+	enqueued := 0
+	now := time.Now()
+	for _, bk := range bookmarks {
+		task, err := enqueueMirrorTaskForNovel(bk.NovelID, false)
+		if err != nil {
+			if errors.Is(err, gorm.ErrDuplicatedKey) {
+				slog.Debug("Novel mirror task already queued, skipping", "novelID", bk.NovelID)
+			} else {
+				slog.Error("Failed to enqueue novel mirror task", "novelID", bk.NovelID, "error", err)
+				continue
+			}
+		}
+
+		status := model.BookmarkMirrorMirroring
+		if task.SuccessCount > 0 {
+			status = model.BookmarkMirrorDone
+		}
+
+		if err := db.DB.Model(&model.BookmarkNovel{}).
+			Where("id = ?", bk.ID).
+			Updates(map[string]any{
+				"mirror_status": status,
+				"updated_at":    now,
+			}).Error; err != nil {
+			slog.Error("Failed to update novel bookmark mirror_status", "novelID", bk.NovelID, "error", err)
+			continue
+		}
+		enqueued++
+	}
+	return enqueued, nil
+}
+
+// ---------------------------------------------------------------------------
+// Novel retry loop — every 3 minutes
+// ---------------------------------------------------------------------------
+
+func (s *BookmarkMirrorScheduler) novelRetryLoop() {
+	s.ensureScheduledTask(model.ScheduledTaskNovelBookmarkMirrorRetry, s.RetryInterval)
+
+	for {
+		wait := s.timeUntilNextRun(model.ScheduledTaskNovelBookmarkMirrorRetry, s.RetryInterval)
+		slog.Debug("Novel bookmark mirror (retry) scheduled", "wait", wait.Round(time.Second))
+		timer := time.NewTimer(wait)
+		select {
+		case <-s.stopCh:
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
+		s.runNovelRetryCycle()
+	}
+}
+
+func (s *BookmarkMirrorScheduler) runNovelRetryCycle() {
+	if !s.retryRunMu.TryLock() {
+		return
+	}
+	defer s.retryRunMu.Unlock()
+
+	name := model.ScheduledTaskNovelBookmarkMirrorRetry
+	s.updateScheduledStart(name)
+
+	start := time.Now()
+	retried, err := s.retryFailedNovelMirrors()
+	elapsed := time.Since(start)
+
+	s.updateScheduledEnd(name, elapsed, retried, err)
+	if err != nil {
+		slog.Error("Novel bookmark mirror (retry) cycle failed", "error", err, "elapsed", elapsed.Round(time.Millisecond))
+	} else if retried > 0 {
+		slog.Info("Novel bookmark mirror (retry) cycle completed", "retried", retried, "elapsed", elapsed.Round(time.Millisecond))
+	}
+}
+
+func (s *BookmarkMirrorScheduler) retryFailedNovelMirrors() (int, error) {
+	var bookmarks []model.BookmarkNovel
+	if err := db.DB.Where(
+		"removed = ? AND mirror_status = ? AND mirror_retry_count < ?",
+		false,
+		model.BookmarkMirrorFailed,
+		model.BookmarkMirrorMaxRetry,
+	).Order("updated_at asc").
+		Find(&bookmarks).Error; err != nil {
+		return 0, fmt.Errorf("query failed novel bookmarks for retry: %w", err)
+	}
+	if len(bookmarks) == 0 {
+		return 0, nil
+	}
+
+	retried := 0
+	now := time.Now()
+	for _, bk := range bookmarks {
+		_, err := enqueueMirrorTaskForNovel(bk.NovelID, true)
+		if err != nil {
+			slog.Error("Failed to re-enqueue novel mirror task for retry", "novelID", bk.NovelID, "error", err)
+			continue
+		}
+
+		if err := db.DB.Model(&model.BookmarkNovel{}).
+			Where("id = ?", bk.ID).
+			Updates(map[string]any{
+				"mirror_status":      model.BookmarkMirrorMirroring,
+				"mirror_retry_count": gorm.Expr("mirror_retry_count + 1"),
+				"updated_at":         now,
+			}).Error; err != nil {
+			slog.Error("Failed to update novel bookmark retry state", "novelID", bk.NovelID, "error", err)
+			continue
+		}
+		retried++
+	}
+	return retried, nil
+}
+
+// ---------------------------------------------------------------------------
+// enqueueMirrorTaskForNovel — enqueue logic for novels
+// ---------------------------------------------------------------------------
+
+func enqueueMirrorTaskForNovel(novelID int64, isRetry bool) (model.MirrorTask, error) {
+	var existing model.MirrorTask
+	err := db.DB.Where(
+		"target_type = ? AND target_id = ?",
+		model.MirrorTargetNovel,
+		novelID,
+	).First(&existing).Error
+
+	if err == nil {
+		if !isRetry {
+			return existing, nil
+		}
+		now := time.Now()
+		if err := db.DB.Model(&model.MirrorTask{}).
+			Where("id = ?", existing.ID).
+			Updates(map[string]any{
+				"status":        model.MirrorTaskStatusQueued,
+				"error_message": "",
+				"success_count": 0,
+				"failed_count":  0,
+				"attempt_count": gorm.Expr("attempt_count + 1"),
+				"finished_at":   nil,
+				"updated_at":    now,
+			}).Error; err != nil {
+			return model.MirrorTask{}, fmt.Errorf("reset novel mirror task for retry: %w", err)
+		}
+		existing.Status = model.MirrorTaskStatusQueued
+		return existing, nil
+	}
+
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return model.MirrorTask{}, err
+	}
+
+	payload, _ := json.Marshal(map[string]any{"novel_id": novelID})
+	now := time.Now()
+	task := model.MirrorTask{
+		ID:                 newMirrorSchedulerTaskID(),
+		TaskType:           model.MirrorTaskTypeNovel,
+		TargetType:         model.MirrorTargetNovel,
+		TargetID:           novelID,
+		Status:             model.MirrorTaskStatusQueued,
+		RequestPayloadJSON: string(payload),
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	}
+	if err := db.DB.Create(&task).Error; err != nil {
+		return model.MirrorTask{}, err
+	}
+	return task, nil
 }

@@ -27,6 +27,8 @@ func setupMirrorHandlerTestRouter() *gin.Engine {
 	{
 		api.POST("/illusts/:illust_id/mirror", MirrorIllust)
 		api.GET("/illusts/:illust_id/mirror", CheckIllustMirror)
+		api.GET("/mirror/illusts", ListMirroredIllusts)
+		api.GET("/mirror/novels", ListMirroredNovels)
 	}
 	mirror := r.Group("/mirror", middleware.BasicAuth("admin", "test12345"))
 	{
@@ -42,7 +44,7 @@ func setupMirrorHandlerTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("failed to open database: %v", err)
 	}
-	if err := gormDB.AutoMigrate(&model.MirrorTask{}, &model.MirrorIllust{}); err != nil {
+	if err := gormDB.AutoMigrate(&model.MirrorTask{}, &model.MirrorIllust{}, &model.MirrorNovel{}); err != nil {
 		t.Fatalf("failed to migrate: %v", err)
 	}
 
@@ -103,6 +105,99 @@ func TestMirrorBusinessEndpointsUseApiNamespace(t *testing.T) {
 	router.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("expected old /mirror POST to be unregistered, got %d", w.Code)
+	}
+}
+
+func TestListMirroredItemsReturnsDisplayTitles(t *testing.T) {
+	setupMirrorHandlerTestDB(t)
+	router := setupMirrorHandlerTestRouter()
+	now := time.Now()
+
+	db.DB.Create(&model.MirrorTask{
+		ID:           "illust-task-1",
+		TaskType:     model.MirrorTaskTypeIllust,
+		TargetType:   model.MirrorTargetIllust,
+		TargetID:     111,
+		Status:       model.MirrorTaskStatusSuccess,
+		TotalCount:   1,
+		SuccessCount: 1,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	})
+	db.DB.Create(&model.MirrorIllust{
+		IllustID:       111,
+		DetailJSON:     `{"illust":{"id":111,"title":"插画标题","user":{"name":"插画作者"}}}`,
+		ImageFilesJSON: `[]`,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	})
+	db.DB.Create(&model.MirrorTask{
+		ID:           "novel-task-1",
+		TaskType:     model.MirrorTaskTypeNovel,
+		TargetType:   model.MirrorTargetNovel,
+		TargetID:     222,
+		Status:       model.MirrorTaskStatusSuccess,
+		TotalCount:   1,
+		SuccessCount: 1,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	})
+	db.DB.Create(&model.MirrorNovel{
+		NovelID:    222,
+		DetailJSON: `{"novel":{"id":222,"title":"小说标题","user":{"name":"小说作者"}}}`,
+		TextJSON:   `{"text":"正文"}`,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	})
+
+	req, _ := http.NewRequest("GET", "/api/pixez/mirror/illusts", nil)
+	req.SetBasicAuth("admin", "test12345")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	var illustResp struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Items []struct {
+				IllustID int64  `json:"illust_id"`
+				Title    string `json:"title"`
+				UserName string `json:"user_name"`
+			} `json:"items"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &illustResp); err != nil {
+		t.Fatalf("failed to parse illust response: %v", err)
+	}
+	if !illustResp.Success || len(illustResp.Data.Items) != 1 {
+		t.Fatalf("unexpected illust list response: %s", w.Body.String())
+	}
+	if item := illustResp.Data.Items[0]; item.IllustID != 111 || item.Title != "插画标题" || item.UserName != "插画作者" {
+		t.Fatalf("expected illust title and user name, got %+v", item)
+	}
+
+	req, _ = http.NewRequest("GET", "/api/pixez/mirror/novels", nil)
+	req.SetBasicAuth("admin", "test12345")
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	var novelResp struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Items []struct {
+				NovelID  int64  `json:"novel_id"`
+				Title    string `json:"title"`
+				UserName string `json:"user_name"`
+			} `json:"items"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &novelResp); err != nil {
+		t.Fatalf("failed to parse novel response: %v", err)
+	}
+	if !novelResp.Success || len(novelResp.Data.Items) != 1 {
+		t.Fatalf("unexpected novel list response: %s", w.Body.String())
+	}
+	if item := novelResp.Data.Items[0]; item.NovelID != 222 || item.Title != "小说标题" || item.UserName != "小说作者" {
+		t.Fatalf("expected novel title and user name, got %+v", item)
 	}
 }
 

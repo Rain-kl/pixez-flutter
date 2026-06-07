@@ -84,6 +84,7 @@ func main() {
 		api.POST("/illusts/mirror/batch", handler.BatchCheckIllustMirror)
 		api.POST("/novels/:novel_id/mirror", handler.MirrorNovel)
 		api.GET("/novels/:novel_id/mirror", handler.CheckNovelMirror)
+		api.POST("/novels/mirror/batch", handler.BatchCheckNovelMirror)
 
 		// Mirror management
 		api.GET("/mirror/illusts", handler.ListMirroredIllusts)

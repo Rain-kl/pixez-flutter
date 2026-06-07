@@ -19,13 +19,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:pixez/component/pixez_default_header.dart';
 import 'package:pixez/component/pixiv_image.dart';
+import 'package:pixez/custom/services/novel_mirror_status_cache.dart';
+import 'package:pixez/exts.dart';
 import 'package:pixez/i18n.dart';
 import 'package:pixez/lighting/lighting_store.dart';
 import 'package:pixez/models/novel_recom_response.dart';
 import 'package:pixez/page/novel/component/novel_bookmark_button.dart';
 import 'package:pixez/page/novel/component/novel_lighting_store.dart';
 import 'package:pixez/page/novel/viewer/novel_viewer.dart';
-import 'package:pixez/exts.dart';
 
 class NovelLightingList extends StatefulWidget {
   final FutureGet futureGet;
@@ -103,6 +104,7 @@ class _NovelLightingListState extends State<NovelLightingList> {
       padding: EdgeInsets.all(0),
       itemBuilder: (context, index) {
         Novel novel = _store.novels[index].novel!;
+        NovelMirrorStatusCache.markForCheck(novel.id);
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4.0),
           child: InkWell(
@@ -226,7 +228,23 @@ class _NovelLightingListState extends State<NovelLightingList> {
                       children: [
                         NovelBookmarkButton(novel: novel),
                         Text('${novel.totalBookmarks}',
-                            style: Theme.of(context).textTheme.bodySmall)
+                            style: Theme.of(context).textTheme.bodySmall),
+                        ValueListenableBuilder<int>(
+                          valueListenable: NovelMirrorStatusCache.version,
+                          builder: (_, __, ___) {
+                            if (NovelMirrorStatusCache.isMirrored(novel.id)) {
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 2.0),
+                                child: Icon(
+                                  Icons.cloud_done,
+                                  color: Colors.green,
+                                  size: 14.0,
+                                ),
+                              );
+                            }
+                            return const SizedBox.shrink();
+                          },
+                        ),
                       ],
                     ),
                   )

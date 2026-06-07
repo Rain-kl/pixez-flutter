@@ -151,6 +151,54 @@ func BatchCheckIllustMirror(c *gin.Context) {
 	})
 }
 
+// BatchCheckNovelMirror checks mirror status for multiple novels.
+// @Summary Batch check novel mirror status
+// @Description Accepts a JSON array of novel_ids and returns the set of IDs that have been successfully mirrored.
+// @Tags Mirror
+// @Security BasicAuth
+// @Accept json
+// @Produce json
+// @Param body body object true "JSON object with novel_ids array"
+// @Success 200 {object} model.APIResponse{data=object}
+// @Failure 400 {object} model.ErrorResponse
+// @Router /api/pixez/novels/mirror/batch [post]
+func BatchCheckNovelMirror(c *gin.Context) {
+	var req struct {
+		NovelIDs []int64 `json:"novel_ids"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.RespondBadRequest(c, "invalid request body: expected {\"novel_ids\": [...]}")
+		return
+	}
+	if len(req.NovelIDs) == 0 {
+		response.RespondBadRequest(c, "novel_ids must not be empty")
+		return
+	}
+	if len(req.NovelIDs) > 500 {
+		response.RespondBadRequest(c, "novel_ids must not exceed 500 items")
+		return
+	}
+
+	var tasks []model.MirrorTask
+	if err := db.DB.Where(
+		"target_type = ? AND target_id IN ? AND success_count > 0",
+		model.MirrorTargetNovel,
+		req.NovelIDs,
+	).Find(&tasks).Error; err != nil {
+		response.RespondErrorWithStatus(c, http.StatusInternalServerError, "failed to query mirror tasks")
+		return
+	}
+
+	mirroredIDs := make([]int64, 0, len(tasks))
+	for _, t := range tasks {
+		mirroredIDs = append(mirroredIDs, t.TargetID)
+	}
+
+	response.RespondSuccess(c, gin.H{
+		"mirrored_ids": mirroredIDs,
+	})
+}
+
 // GetMirroredIllustDetail returns a mirrored Pixiv detail response.
 // @Summary Get mirrored Pixiv illustration detail
 // @Description Reads a cached Pixiv /v1/illust/detail response and rewrites pximg URLs to this server's /mirror/pximg path. This endpoint intentionally returns the Pixiv response shape, not the standard PixEz Sync API envelope.
@@ -687,6 +735,8 @@ func ListMirroredIllusts(c *gin.Context) {
 	type MirrorIllustItem struct {
 		TaskID       string    `json:"task_id"`
 		IllustID     int64     `json:"illust_id"`
+		Title        string    `json:"title"`
+		UserName     string    `json:"user_name"`
 		Status       string    `json:"status"`
 		SuccessCount int       `json:"success_count"`
 		TotalCount   int       `json:"total_count"`
@@ -695,11 +745,15 @@ func ListMirroredIllusts(c *gin.Context) {
 		UpdatedAt    time.Time `json:"updated_at"`
 	}
 
+	displayInfos := loadMirroredIllustDisplayInfos(tasks)
 	items := make([]MirrorIllustItem, 0, len(tasks))
 	for _, t := range tasks {
+		displayInfo := displayInfos[t.TargetID]
 		items = append(items, MirrorIllustItem{
 			TaskID:       t.ID,
 			IllustID:     t.TargetID,
+			Title:        displayInfo.Title,
+			UserName:     displayInfo.UserName,
 			Status:       t.Status,
 			SuccessCount: t.SuccessCount,
 			TotalCount:   t.TotalCount,
@@ -747,17 +801,23 @@ func ListMirroredNovels(c *gin.Context) {
 	type MirrorNovelItem struct {
 		TaskID    string    `json:"task_id"`
 		NovelID   int64     `json:"novel_id"`
+		Title     string    `json:"title"`
+		UserName  string    `json:"user_name"`
 		Status    string    `json:"status"`
 		HasMirror bool      `json:"has_mirror"`
 		CreatedAt time.Time `json:"created_at"`
 		UpdatedAt time.Time `json:"updated_at"`
 	}
 
+	displayInfos := loadMirroredNovelDisplayInfos(tasks)
 	items := make([]MirrorNovelItem, 0, len(tasks))
 	for _, t := range tasks {
+		displayInfo := displayInfos[t.TargetID]
 		items = append(items, MirrorNovelItem{
 			TaskID:    t.ID,
 			NovelID:   t.TargetID,
+			Title:     displayInfo.Title,
+			UserName:  displayInfo.UserName,
 			Status:    t.Status,
 			HasMirror: t.SuccessCount > 0,
 			CreatedAt: t.CreatedAt,
@@ -771,6 +831,89 @@ func ListMirroredNovels(c *gin.Context) {
 		"page":      page,
 		"page_size": pageSize,
 	})
+}
+
+type mirrorDisplayInfo struct {
+	Title    string
+	UserName string
+}
+
+func loadMirroredIllustDisplayInfos(tasks []model.MirrorTask) map[int64]mirrorDisplayInfo {
+	infos := make(map[int64]mirrorDisplayInfo, len(tasks))
+	if len(tasks) == 0 {
+		return infos
+	}
+
+	ids := make([]int64, 0, len(tasks))
+	for _, task := range tasks {
+		ids = append(ids, task.TargetID)
+	}
+
+	var records []model.MirrorIllust
+	if err := db.DB.Where("illust_id IN ?", ids).Find(&records).Error; err != nil {
+		return infos
+	}
+	for _, record := range records {
+		infos[record.IllustID] = extractMirroredIllustDisplayInfo(record.DetailJSON)
+	}
+	return infos
+}
+
+func loadMirroredNovelDisplayInfos(tasks []model.MirrorTask) map[int64]mirrorDisplayInfo {
+	infos := make(map[int64]mirrorDisplayInfo, len(tasks))
+	if len(tasks) == 0 {
+		return infos
+	}
+
+	ids := make([]int64, 0, len(tasks))
+	for _, task := range tasks {
+		ids = append(ids, task.TargetID)
+	}
+
+	var records []model.MirrorNovel
+	if err := db.DB.Where("novel_id IN ?", ids).Find(&records).Error; err != nil {
+		return infos
+	}
+	for _, record := range records {
+		infos[record.NovelID] = extractMirroredNovelDisplayInfo(record.DetailJSON)
+	}
+	return infos
+}
+
+func extractMirroredIllustDisplayInfo(detailJSON string) mirrorDisplayInfo {
+	var payload struct {
+		Illust struct {
+			Title string `json:"title"`
+			User  struct {
+				Name string `json:"name"`
+			} `json:"user"`
+		} `json:"illust"`
+	}
+	if err := json.Unmarshal([]byte(detailJSON), &payload); err != nil {
+		return mirrorDisplayInfo{}
+	}
+	return mirrorDisplayInfo{
+		Title:    payload.Illust.Title,
+		UserName: payload.Illust.User.Name,
+	}
+}
+
+func extractMirroredNovelDisplayInfo(detailJSON string) mirrorDisplayInfo {
+	var payload struct {
+		Novel struct {
+			Title string `json:"title"`
+			User  struct {
+				Name string `json:"name"`
+			} `json:"user"`
+		} `json:"novel"`
+	}
+	if err := json.Unmarshal([]byte(detailJSON), &payload); err != nil {
+		return mirrorDisplayInfo{}
+	}
+	return mirrorDisplayInfo{
+		Title:    payload.Novel.Title,
+		UserName: payload.Novel.User.Name,
+	}
 }
 
 // DeleteMirroredIllust deletes a mirrored illustration and its task.

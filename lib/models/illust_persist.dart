@@ -118,7 +118,7 @@ create table $tableIllustPersist (
 
   Future<IllustPersist?> getAccount(int illust_id) async {
     List<Map<String, dynamic>> maps = await db.query(tableIllustPersist,
-        columns: [cid, cillust_id, cuser_id, cpicture_url, ctime],
+        columns: [cid, cillust_id, cuser_id, cpicture_url, ctime, ctitle, cuser_name],
         where: '$cillust_id = ?',
         whereArgs: [illust_id]);
     if (maps.length > 0) {

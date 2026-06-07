@@ -129,6 +129,115 @@ func TestBookmarkExportWorkerUpsertsAndMarksMissingRemoved(t *testing.T) {
 	}
 }
 
+func TestNovelBookmarkExportWorkerSkipsUpdatesAndMarksRemoved(t *testing.T) {
+	setupMirrorWorkerTestDB(t)
+	if err := db.DB.AutoMigrate(&model.BookmarkExportRun{}, &model.BookmarkNovel{}); err != nil {
+		t.Fatalf("failed to migrate novel bookmark tables: %v", err)
+	}
+
+	user := model.PixivUser{
+		PixivUserID:  "58490893",
+		Name:         "TestUser",
+		Account:      "test_acc",
+		AccessToken:  "valid_access_token",
+		RefreshToken: "valid_refresh_token",
+		UpdatedAt:    time.Now(),
+	}
+	if err := db.DB.Create(&user).Error; err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+
+	call := 0
+	originalTransport := pixivClient.Transport
+	pixivClient.Transport = &mockPixivTransport{
+		roundTripFunc: func(req *http.Request) (*http.Response, error) {
+			if req.URL.Host != "app-api.pixiv.net" || req.URL.Path != "/v1/user/bookmarks/novel" {
+				return &http.Response{
+					StatusCode: http.StatusNotFound,
+					Body:       io.NopCloser(bytes.NewBufferString("not found")),
+					Header:     make(http.Header),
+				}, nil
+			}
+			call++
+			body := `{"novels":[` + bookmarkNovelJSON(100, "first") + `,` + bookmarkNovelJSON(200, "second") + `],"next_url":null}`
+			if call == 2 {
+				body = `{"novels":[` + bookmarkNovelJSON(100, "first updated") + `],"next_url":null}`
+			} else if call == 3 {
+				body = `{"novels":[` + bookmarkLimitUnknownNovelJSON(100, "first hidden") + `],"next_url":null}`
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewBufferString(body)),
+				Header:     make(http.Header),
+			}, nil
+		},
+	}
+	t.Cleanup(func() {
+		pixivClient.Transport = originalTransport
+	})
+
+	worker := NewNovelBookmarkExportWorker(24 * time.Hour)
+	result, err := worker.exportUserForRestrict(user, "public")
+	if err != nil {
+		t.Fatalf("first novel export failed: %v", err)
+	}
+	if result.TotalCount != 2 || result.NewCount != 2 || result.RemovedCount != 0 {
+		t.Fatalf("unexpected first novel export result: %+v", result)
+	}
+
+	result, err = worker.exportUserForRestrict(user, "public")
+	if err != nil {
+		t.Fatalf("second novel export failed: %v", err)
+	}
+	if result.TotalCount != 1 || result.UpdatedCount != 0 || result.RemovedCount != 1 {
+		t.Fatalf("unexpected second novel export result: %+v", result)
+	}
+
+	var kept model.BookmarkNovel
+	if err := db.DB.First(&kept, "pixiv_user_id = ? AND novel_id = ?", user.PixivUserID, 100).Error; err != nil {
+		t.Fatalf("expected kept novel bookmark: %v", err)
+	}
+	if kept.Removed || !strings.Contains(kept.NovelJSON, "first") || strings.Contains(kept.NovelJSON, "first updated") {
+		t.Fatalf("expected novel bookmark 100 to stay unchanged and active: removed=%v json=%s", kept.Removed, kept.NovelJSON)
+	}
+
+	var removed model.BookmarkNovel
+	if err := db.DB.First(&removed, "pixiv_user_id = ? AND novel_id = ?", user.PixivUserID, 200).Error; err != nil {
+		t.Fatalf("expected removed novel bookmark record to remain: %v", err)
+	}
+	if !removed.Removed || removed.RemovedAt == nil {
+		t.Fatalf("expected novel bookmark 200 to be marked removed, got removed=%v removedAt=%v", removed.Removed, removed.RemovedAt)
+	}
+
+	var hiddenNovel PixivBookmarkNovel
+	if err := json.Unmarshal([]byte(bookmarkLimitUnknownNovelJSON(100, "first hidden")), &hiddenNovel); err != nil {
+		t.Fatalf("failed to unmarshal limit_unknown novel: %v", err)
+	}
+	if !pixivNovelHasLimitUnknownImage(hiddenNovel) {
+		t.Fatalf("expected test helper to generate limit_unknown novel image urls: %+v", hiddenNovel.ImageUrls)
+	}
+
+	result, err = worker.exportUserForRestrict(user, "public")
+	if err != nil {
+		t.Fatalf("third novel export failed: %v", err)
+	}
+	if result.TotalCount != 1 || result.UpdatedCount != 0 || result.RemovedCount != 1 {
+		t.Fatalf("unexpected third novel export result: %+v", result)
+	}
+	if err := db.DB.First(&kept, "pixiv_user_id = ? AND novel_id = ?", user.PixivUserID, 100).Error; err != nil {
+		t.Fatalf("expected hidden novel bookmark: %v", err)
+	}
+	if !kept.Removed || kept.RemovedAt == nil {
+		t.Fatalf("expected limit_unknown novel bookmark 100 to be marked removed: removed=%v removedAt=%v", kept.Removed, kept.RemovedAt)
+	}
+
+	var count int64
+	db.DB.Model(&model.BookmarkNovel{}).Where("pixiv_user_id = ?", user.PixivUserID).Count(&count)
+	if count != 2 {
+		t.Fatalf("expected removed novel bookmarks to stay in database, got count=%d", count)
+	}
+}
+
 func bookmarkLimitUnknownIllustJSON(id int64, title string) string {
 	return strings.Replace(
 		bookmarkIllustJSON(id, title),
@@ -186,6 +295,59 @@ func bookmarkIllustJSON(id int64, title string) string {
 		"illust_book_style": 0,
 		"request": null,
 		"restriction_attributes": ["restricted_mode"]
+	}`
+}
+
+func bookmarkLimitUnknownNovelJSON(id int64, title string) string {
+	return strings.Replace(
+		bookmarkNovelJSON(id, title),
+		`"image_urls": {
+			"square_medium": "https://i.pximg.net/novel/`+intToString(id)+`_square1200.jpg",
+			"medium": "https://i.pximg.net/novel/`+intToString(id)+`_master1200.jpg",
+			"large": "https://i.pximg.net/novel/`+intToString(id)+`_master1200.jpg"
+		}`,
+		`"image_urls": {
+			"square_medium": "https://s.pximg.net/common/images/limit_unknown_100.png",
+			"medium": "https://s.pximg.net/common/images/limit_unknown_100.png",
+			"large": "https://s.pximg.net/common/images/limit_unknown_100.png"
+		}`,
+		1,
+	)
+}
+
+func bookmarkNovelJSON(id int64, title string) string {
+	return `{
+		"id": ` + intToString(id) + `,
+		"title": "` + title + `",
+		"caption": "",
+		"restrict": 0,
+		"x_restrict": 0,
+		"is_original": true,
+		"image_urls": {
+			"square_medium": "https://i.pximg.net/novel/` + intToString(id) + `_square1200.jpg",
+			"medium": "https://i.pximg.net/novel/` + intToString(id) + `_master1200.jpg",
+			"large": "https://i.pximg.net/novel/` + intToString(id) + `_master1200.jpg"
+		},
+		"create_date": "2026-06-06T19:40:26+09:00",
+		"text_length": 1200,
+		"total_view": 147,
+		"total_bookmarks": 31,
+		"is_bookmarked": true,
+		"visible": true,
+		"is_muted": false,
+		"novel_ai_type": 0,
+		"user": {
+			"id": 43053815,
+			"name": "Author",
+			"account": "author",
+			"profile_image_urls": {"medium": "https://i.pximg.net/user.jpg"},
+			"is_followed": true,
+			"is_accept_request": false
+		},
+		"tags": [{"name": "tag", "translated_name": null}],
+		"series": null,
+		"page_count": 1,
+		"total_comments": 5
 	}`
 }
 

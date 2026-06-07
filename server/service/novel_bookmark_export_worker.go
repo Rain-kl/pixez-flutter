@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -252,16 +253,20 @@ func (w *NovelBookmarkExportWorker) exportUserWithRun(user model.PixivUser, runI
 				"updated_at":       time.Now(),
 			})
 		for _, novel := range payload.Novels {
-			created, err := upsertBookmarkNovel(user.PixivUserID, restrict, runID, novel)
+			saveStatus, err := upsertBookmarkNovel(user.PixivUserID, restrict, runID, novel)
 			if err != nil {
 				return err
 			}
 			result.TotalCount++
-			seenNovelIDs = append(seenNovelIDs, novel.ID)
-			if created {
+			if saveStatus != bookmarkIllustSaveRemoved {
+				seenNovelIDs = append(seenNovelIDs, novel.ID)
+			}
+			if saveStatus == bookmarkIllustSaveCreated {
 				result.NewCount++
-			} else {
+			} else if saveStatus == bookmarkIllustSaveUpdated {
 				result.UpdatedCount++
+			} else if saveStatus == bookmarkIllustSaveRemoved {
+				result.RemovedCount++
 			}
 		}
 		nextURL = payload.NextURL
@@ -271,13 +276,13 @@ func (w *NovelBookmarkExportWorker) exportUserWithRun(user model.PixivUser, runI
 	if err != nil {
 		return err
 	}
-	result.RemovedCount = int(removed)
+	result.RemovedCount += int(removed)
 	return nil
 }
 
-func upsertBookmarkNovel(pixivUserID string, restrict string, runID string, novel PixivBookmarkNovel) (bool, error) {
+func upsertBookmarkNovel(pixivUserID string, restrict string, runID string, novel PixivBookmarkNovel) (bookmarkIllustSaveStatus, error) {
 	if novel.ID <= 0 {
-		return false, fmt.Errorf("novel bookmark export received novel without id")
+		return bookmarkIllustSaveSkipped, fmt.Errorf("novel bookmark export received novel without id")
 	}
 
 	var existing model.BookmarkNovel
@@ -286,13 +291,79 @@ func upsertBookmarkNovel(pixivUserID string, restrict string, runID string, nove
 		pixivUserID, restrict, novel.ID,
 	).First(&existing).Error
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return false, err
+		return bookmarkIllustSaveSkipped, err
 	}
 	created := errors.Is(err, gorm.ErrRecordNotFound)
 
+	isLimitUnknown := pixivNovelHasLimitUnknownImage(novel)
+	if isLimitUnknown && !created {
+		if existing.Removed {
+			return bookmarkIllustSaveSkipped, nil
+		}
+		now := time.Now()
+		if err := db.DB.Model(&existing).Updates(map[string]any{
+			"removed":    true,
+			"removed_at": now,
+			"updated_at": now,
+		}).Error; err != nil {
+			return bookmarkIllustSaveSkipped, err
+		}
+		return bookmarkIllustSaveRemoved, nil
+	}
+	if isLimitUnknown && created {
+		// New novel but limit_unknown — insert as removed
+		raw, err := json.Marshal(novel)
+		if err != nil {
+			return bookmarkIllustSaveSkipped, err
+		}
+		now := time.Now()
+		var seriesID *int64
+		var seriesTitle *string
+		if novel.Series != nil {
+			seriesID = &novel.Series.ID
+			seriesTitle = &novel.Series.Title
+		}
+		record := model.BookmarkNovel{
+			PixivUserID:     pixivUserID,
+			Restrict:        restrict,
+			NovelID:         novel.ID,
+			Title:           novel.Title,
+			Caption:         novel.Caption,
+			UserID:          novel.User.ID,
+			UserName:        novel.User.Name,
+			TextLength:      novel.TextLength,
+			XRestrict:       novel.XRestrict,
+			TotalView:       novel.TotalView,
+			TotalBookmarks:  novel.TotalBookmarks,
+			IsOriginal:      novel.IsOriginal,
+			Visible:         novel.Visible,
+			IsMuted:         novel.IsMuted,
+			NovelAIType:     novel.NovelAIType,
+			SeriesID:        seriesID,
+			SeriesTitle:     seriesTitle,
+			CoverURL:        novel.ImageUrls.Medium,
+			NovelJSON:       string(raw),
+			LastExportRunID: runID,
+			LastSeenAt:      now,
+			Removed:         true,
+			RemovedAt:       &now,
+			CreatedAt:       now,
+			UpdatedAt:       now,
+		}
+		if err := db.DB.Create(&record).Error; err != nil {
+			return bookmarkIllustSaveSkipped, err
+		}
+		return bookmarkIllustSaveRemoved, nil
+	}
+
+	if !created && !existing.Removed {
+		// Already present and not removed — skip
+		return bookmarkIllustSaveSkipped, nil
+	}
+
 	raw, err := json.Marshal(novel)
 	if err != nil {
-		return false, err
+		return bookmarkIllustSaveSkipped, err
 	}
 	now := time.Now()
 
@@ -333,14 +404,9 @@ func upsertBookmarkNovel(pixivUserID string, restrict string, runID string, nove
 
 	if created {
 		if err := db.DB.Create(&record).Error; err != nil {
-			return false, err
+			return bookmarkIllustSaveSkipped, err
 		}
-		return true, nil
-	}
-
-	if !existing.Removed {
-		// Already present and not removed — skip
-		return false, nil
+		return bookmarkIllustSaveCreated, nil
 	}
 
 	// Was removed, now re-bookmarked — restore
@@ -367,9 +433,15 @@ func upsertBookmarkNovel(pixivUserID string, restrict string, runID string, nove
 		"removed_at":         nil,
 		"updated_at":         record.UpdatedAt,
 	}).Error; err != nil {
-		return false, err
+		return bookmarkIllustSaveSkipped, err
 	}
-	return false, nil
+	return bookmarkIllustSaveUpdated, nil
+}
+
+func pixivNovelHasLimitUnknownImage(novel PixivBookmarkNovel) bool {
+	return strings.Contains(novel.ImageUrls.SquareMedium, "limit_unknown_100") ||
+		strings.Contains(novel.ImageUrls.Medium, "limit_unknown_100") ||
+		strings.Contains(novel.ImageUrls.Large, "limit_unknown_100")
 }
 
 func markMissingNovelBookmarksRemoved(pixivUserID string, restrict string, seenNovelIDs []int64) (int64, error) {

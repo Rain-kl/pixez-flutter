@@ -16,9 +16,11 @@
 
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
-import 'package:html/parser.dart';
+import 'package:bot_toast/bot_toast.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
+import 'package:html/parser.dart';
 import 'package:mobx/mobx.dart';
 import 'package:pixez/custom/services/novel_mirror_service.dart';
 import 'package:pixez/er/lprinter.dart';
@@ -28,7 +30,6 @@ import 'package:pixez/models/novel_viewer_persist.dart';
 import 'package:pixez/models/novel_web_response.dart';
 import 'package:pixez/network/api_client.dart';
 import 'package:pixez/page/novel/viewer/image_text.dart';
-import 'package:flutter/widgets.dart';
 
 part 'novel_store.g.dart';
 
@@ -93,7 +94,9 @@ abstract class _NovelStoreBase with Store {
       // Try mirror fallback before giving up.
       final mirrorOk =
           await NovelMirrorService.fetchFromMirror(this as NovelStore);
-      if (!mirrorOk) {
+      if (mirrorOk) {
+        BotToast.showText(text: '已切换到镜像加速');
+      } else {
         errorMessage = e.toString();
       }
     }

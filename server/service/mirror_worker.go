@@ -122,24 +122,38 @@ func (w *MirrorWorker) ProcessOne() bool {
 }
 
 // updateBookmarkMirrorStatus writes the mirror result back to the
-// bookmark_illusts row so the scheduler can track progress.
+// bookmark_illusts or bookmark_novels row so the scheduler can track progress.
 func (w *MirrorWorker) updateBookmarkMirrorStatus(targetType string, targetID int64, status int) {
-	if targetType != model.MirrorTargetIllust {
-		return
-	}
 	now := time.Now()
-	result := db.DB.Model(&model.BookmarkIllust{}).
-		Where("illust_id = ?", targetID).
-		Updates(map[string]any{
-			"mirror_status": status,
-			"updated_at":    now,
-		})
-	if result.Error != nil {
-		slog.Error("Failed to update bookmark mirror_status",
-			"illustID", targetID, "status", status, "error", result.Error)
-	} else if result.RowsAffected > 0 {
-		slog.Debug("Bookmark mirror_status updated",
-			"illustID", targetID, "status", status)
+	switch targetType {
+	case model.MirrorTargetIllust:
+		result := db.DB.Model(&model.BookmarkIllust{}).
+			Where("illust_id = ?", targetID).
+			Updates(map[string]any{
+				"mirror_status": status,
+				"updated_at":    now,
+			})
+		if result.Error != nil {
+			slog.Error("Failed to update bookmark mirror_status",
+				"illustID", targetID, "status", status, "error", result.Error)
+		} else if result.RowsAffected > 0 {
+			slog.Debug("Bookmark mirror_status updated",
+				"illustID", targetID, "status", status)
+		}
+	case model.MirrorTargetNovel:
+		result := db.DB.Model(&model.BookmarkNovel{}).
+			Where("novel_id = ?", targetID).
+			Updates(map[string]any{
+				"mirror_status": status,
+				"updated_at":    now,
+			})
+		if result.Error != nil {
+			slog.Error("Failed to update novel bookmark mirror_status",
+				"novelID", targetID, "status", status, "error", result.Error)
+		} else if result.RowsAffected > 0 {
+			slog.Debug("Novel bookmark mirror_status updated",
+				"novelID", targetID, "status", status)
+		}
 	}
 }
 
