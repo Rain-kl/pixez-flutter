@@ -70,6 +70,17 @@ jobs:
       - name: Install Flutter dependencies
         run: flutter pub get
 
+      - name: Install rhttp dependencies
+        working-directory: plugins/rhttp
+        run: flutter pub get
+
+      - name: Generate rhttp files
+        working-directory: plugins/rhttp
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Generate app files
+        run: dart run build_runner build --delete-conflicting-outputs
+
       - name: Release APK Sign
         run: |
           echo '${{ secrets.RELEASE_KEY_STORE }}' | base64 --decode > $GITHUB_WORKSPACE/android/app/key.jks
