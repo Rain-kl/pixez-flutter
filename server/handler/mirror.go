@@ -79,8 +79,7 @@ func CheckIllustMirror(c *gin.Context) {
 
 	var task model.MirrorTask
 	err := db.DB.Where(
-		"task_type = ? AND target_type = ? AND target_id = ?",
-		model.MirrorTaskTypeIllust,
+		"target_type = ? AND target_id = ?",
 		model.MirrorTargetIllust,
 		illustID,
 	).First(&task).Error
@@ -134,8 +133,7 @@ func BatchCheckIllustMirror(c *gin.Context) {
 
 	var tasks []model.MirrorTask
 	if err := db.DB.Where(
-		"task_type = ? AND target_type = ? AND target_id IN ? AND success_count > 0",
-		model.MirrorTaskTypeIllust,
+		"target_type = ? AND target_id IN ? AND success_count > 0",
 		model.MirrorTargetIllust,
 		req.IllustIDs,
 	).Find(&tasks).Error; err != nil {
@@ -244,6 +242,13 @@ func ServeMirroredImage(c *gin.Context) {
 		return
 	}
 
+	// Sanitize: remove leading slash and reject path traversal
+	path = strings.TrimPrefix(path, "/")
+	if strings.Contains(path, "..") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid image path"})
+		return
+	}
+
 	parts := strings.Split(path, "/")
 	filename := parts[len(parts)-1]
 	if filename == "" {
@@ -264,24 +269,53 @@ func ServeMirroredImage(c *gin.Context) {
 		}
 	}
 
-	// 2. Try exact file path match under MirrorDir
+	// 2. Try exact file path match — only within an illust ID directory
 	if !found {
-		fp := filepath.Join(MirrorDir, path)
-		if _, err := os.Stat(fp); err == nil {
-			filePath = fp
-			found = true
+		// Extract the first path segment as the potential illust ID directory.
+		if firstSlash := strings.Index(path, "/"); firstSlash != -1 {
+			illustDirCandidate := path[:firstSlash]
+			if isNumericDir(illustDirCandidate) {
+				fp := filepath.Join(MirrorDir, path)
+				// Verify the resolved path is still under MirrorDir (no traversal).
+				absFp, _ := filepath.Abs(fp)
+				absMirror, _ := filepath.Abs(MirrorDir)
+				if strings.HasPrefix(absFp, absMirror+string(os.PathSeparator)) {
+					if _, err := os.Stat(fp); err == nil {
+						filePath = fp
+						found = true
+					}
+				}
+			}
 		}
 	}
 
-	// 3. Fallback: proxy download on the fly and cache it
+	// 3. Fallback: proxy download on the fly and cache into the correct illust ID directory
 	if !found {
-		destPath := filepath.Join(MirrorDir, path)
-		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+		illustIDStr := ""
+		if idx := strings.Index(filename, "_"); idx != -1 {
+			illustIDStr = filename[:idx]
+		}
+		if illustIDStr == "" || !isNumericDir(illustIDStr) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "cannot determine illust ID from filename"})
+			return
+		}
+
+		destDir := filepath.Join(MirrorDir, illustIDStr)
+		destPath := filepath.Join(destDir, filename)
+
+		absDest, _ := filepath.Abs(destPath)
+		absMirror, _ := filepath.Abs(MirrorDir)
+		if !strings.HasPrefix(absDest, absMirror+string(os.PathSeparator)) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid image path"})
+			return
+		}
+
+		if err := os.MkdirAll(destDir, 0755); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create directories"})
 			return
 		}
 
-		pixivURL := "https://i.pximg.net" + path
+		pixivURL := "https://i.pximg.net/" + path
 		if err := downloadFileFromPixiv(pixivURL, destPath); err != nil {
 			c.JSON(http.StatusBadGateway, gin.H{"error": fmt.Sprintf("failed to proxy image from Pixiv: %v", err)})
 			return
@@ -290,6 +324,20 @@ func ServeMirroredImage(c *gin.Context) {
 	}
 
 	c.File(filePath)
+}
+
+// isNumericDir returns true if s is a non-empty string of digits only,
+// i.e., a valid illust ID directory name like "123456".
+func isNumericDir(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func findMirroredImageFile(illustID string, filename string) (string, error) {
@@ -339,8 +387,7 @@ func parseIllustIDParam(c *gin.Context) (int64, bool) {
 func enqueueIllustMirrorTask(illustID int64) (model.MirrorTask, error) {
 	var existing model.MirrorTask
 	err := db.DB.Where(
-		"task_type = ? AND target_type = ? AND target_id = ?",
-		model.MirrorTaskTypeIllust,
+		"target_type = ? AND target_id = ?",
 		model.MirrorTargetIllust,
 		illustID,
 	).First(&existing).Error
@@ -373,8 +420,7 @@ func enqueueIllustMirrorTask(illustID int64) (model.MirrorTask, error) {
 func isIllustMirrored(illustID int64) bool {
 	var count int64
 	if err := db.DB.Model(&model.MirrorTask{}).Where(
-		"task_type = ? AND target_type = ? AND target_id = ? AND success_count > 0",
-		model.MirrorTaskTypeIllust,
+		"target_type = ? AND target_id = ? AND success_count > 0",
 		model.MirrorTargetIllust,
 		illustID,
 	).Count(&count).Error; err != nil {
@@ -452,8 +498,7 @@ func CheckNovelMirror(c *gin.Context) {
 
 	var task model.MirrorTask
 	err := db.DB.Where(
-		"task_type = ? AND target_type = ? AND target_id = ?",
-		model.MirrorTaskTypeNovel,
+		"target_type = ? AND target_id = ?",
 		model.MirrorTargetNovel,
 		novelID,
 	).First(&task).Error
@@ -570,8 +615,7 @@ func parseNovelIDParam(c *gin.Context) (int64, bool) {
 func enqueueNovelMirrorTask(novelID int64) (model.MirrorTask, error) {
 	var existing model.MirrorTask
 	err := db.DB.Where(
-		"task_type = ? AND target_type = ? AND target_id = ?",
-		model.MirrorTaskTypeNovel,
+		"target_type = ? AND target_id = ?",
 		model.MirrorTargetNovel,
 		novelID,
 	).First(&existing).Error
@@ -604,8 +648,7 @@ func enqueueNovelMirrorTask(novelID int64) (model.MirrorTask, error) {
 func isNovelMirrored(novelID int64) bool {
 	var count int64
 	if err := db.DB.Model(&model.MirrorTask{}).Where(
-		"task_type = ? AND target_type = ? AND target_id = ? AND success_count > 0",
-		model.MirrorTaskTypeNovel,
+		"target_type = ? AND target_id = ? AND success_count > 0",
 		model.MirrorTargetNovel,
 		novelID,
 	).Count(&count).Error; err != nil {

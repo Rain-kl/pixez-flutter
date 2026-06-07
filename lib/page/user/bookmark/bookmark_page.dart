@@ -23,6 +23,7 @@ import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:pixez/component/illust_card.dart';
 import 'package:pixez/component/pixez_default_header.dart';
 import 'package:pixez/component/sort_group.dart';
+import 'package:pixez/custom/services/mirror_status_cache.dart';
 import 'package:pixez/custom/services/removed_bookmark_source.dart';
 import 'package:pixez/exts.dart';
 import 'package:pixez/i18n.dart';
@@ -117,6 +118,7 @@ class _BookmarkPageState extends State<BookmarkPage> {
             onChange: (index) {
               if (index == 0)
                 setState(() {
+                  MirrorStatusCache.invalidateForRefresh();
                   futureGet = ApiForceSource(
                     futureGet: (bool e) => apiClient.getBookmarksIllust(
                       widget.id,
@@ -127,6 +129,7 @@ class _BookmarkPageState extends State<BookmarkPage> {
                 });
               if (index == 1)
                 setState(() {
+                  MirrorStatusCache.invalidateForRefresh();
                   futureGet = ApiForceSource(
                     futureGet: (bool e) => apiClient.getBookmarksIllust(
                       widget.id,
@@ -137,6 +140,7 @@ class _BookmarkPageState extends State<BookmarkPage> {
                 });
               if (index == 2)
                 setState(() {
+                  MirrorStatusCache.invalidateForRefresh();
                   restrict = 'removed';
                   currentTag = null;
                   futureGet = RemovedBookmarkSource(userId: widget.id);
@@ -156,6 +160,7 @@ class _BookmarkPageState extends State<BookmarkPage> {
                   String? tag = result['tag'];
                   String restrict = result['restrict'];
                   setState(() {
+                    MirrorStatusCache.invalidateForRefresh();
                     currentTag = tag;
                     futureGet = ApiForceSource(
                       futureGet: (bool e) => apiClient.getBookmarksIllust(
@@ -249,6 +254,7 @@ class _BookMarkNestedPageState extends State<BookMarkNestedPage> {
               _store.fetchNext();
             },
             onRefresh: () {
+              MirrorStatusCache.invalidateForRefresh();
               _store.fetch(force: true);
             },
             header: PixezDefault.header(
@@ -418,6 +424,7 @@ class _BookMarkNestedPageState extends State<BookMarkNestedPage> {
             children: [I18n.of(context).public, I18n.of(context).private],
             onChange: (index) {
               if (index == 0) {
+                MirrorStatusCache.invalidateForRefresh();
                 _store.source = ApiForceSource(
                   futureGet: (bool e) => apiClient.getBookmarksIllust(
                     widget.id,
@@ -427,6 +434,7 @@ class _BookMarkNestedPageState extends State<BookMarkNestedPage> {
                 );
                 _store.fetch();
               } else if (index == 1) {
+                MirrorStatusCache.invalidateForRefresh();
                 _store.source = ApiForceSource(
                   futureGet: (bool e) => apiClient.getBookmarksIllust(
                     widget.id,
@@ -449,6 +457,7 @@ class _BookMarkNestedPageState extends State<BookMarkNestedPage> {
                   String? tag = result['tag'];
                   String restrict = result['restrict'];
                   setState(() {
+                    MirrorStatusCache.invalidateForRefresh();
                     currentTag = tag;
                     _store.source = ApiForceSource(
                       futureGet: (bool e) => apiClient.getBookmarksIllust(

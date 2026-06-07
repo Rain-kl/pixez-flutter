@@ -17,9 +17,9 @@ const (
 
 type MirrorTask struct {
 	ID                 string     `gorm:"primaryKey;column:id" json:"id"`
-	TaskType           string     `gorm:"column:task_type;not null;uniqueIndex:idx_mirror_task_target" json:"task_type"`
-	TargetType         string     `gorm:"column:target_type;not null;uniqueIndex:idx_mirror_task_target" json:"target_type"`
-	TargetID           int64      `gorm:"column:target_id;not null;uniqueIndex:idx_mirror_task_target" json:"target_id"`
+	TaskType           string     `gorm:"column:task_type;not null" json:"task_type"`
+	TargetType         string     `gorm:"column:target_type;not null;uniqueIndex:idx_mirror_task_target_id" json:"target_type"`
+	TargetID           int64      `gorm:"column:target_id;not null;uniqueIndex:idx_mirror_task_target_id" json:"target_id"`
 	Status             string     `gorm:"column:status;not null;index" json:"status"`
 	RequestPayloadJSON string     `gorm:"column:request_payload_json" json:"request_payload_json"`
 	RequestURLsJSON    string     `gorm:"column:request_urls_json" json:"request_urls_json"`

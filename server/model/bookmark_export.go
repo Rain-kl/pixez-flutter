@@ -6,6 +6,15 @@ const (
 	BookmarkExportStatusRunning = "running"
 	BookmarkExportStatusSuccess = "success"
 	BookmarkExportStatusFailed  = "failed"
+
+	// Mirror status for BookmarkIllust.MirrorStatus
+	BookmarkMirrorNone      = 0
+	BookmarkMirrorDone      = 1
+	BookmarkMirrorMirroring = 2
+	BookmarkMirrorFailed    = -1
+
+	// Max mirror retry attempts
+	BookmarkMirrorMaxRetry = 3
 )
 
 // BookmarkExportRun records one full bookmark export pass for a Pixiv user.
@@ -31,31 +40,33 @@ func (BookmarkExportRun) TableName() string { return "bookmark_export_runs" }
 
 // BookmarkIllust stores the latest known full Pixiv bookmark illustration payload.
 type BookmarkIllust struct {
-	ID              uint       `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
-	PixivUserID     string     `gorm:"column:pixiv_user_id;not null;uniqueIndex:idx_bookmark_illust_user_restrict_illust" json:"pixiv_user_id"`
-	Restrict        string     `gorm:"column:restrict;not null;uniqueIndex:idx_bookmark_illust_user_restrict_illust" json:"restrict"`
-	IllustID        int64      `gorm:"column:illust_id;not null;uniqueIndex:idx_bookmark_illust_user_restrict_illust" json:"illust_id"`
-	Title           string     `gorm:"column:title" json:"title"`
-	Type            string     `gorm:"column:type" json:"type"`
-	UserID          int64      `gorm:"column:user_id" json:"user_id"`
-	UserName        string     `gorm:"column:user_name" json:"user_name"`
-	PageCount       int        `gorm:"column:page_count" json:"page_count"`
-	Width           int        `gorm:"column:width" json:"width"`
-	Height          int        `gorm:"column:height" json:"height"`
-	SanityLevel     int        `gorm:"column:sanity_level" json:"sanity_level"`
-	XRestrict       int        `gorm:"column:x_restrict" json:"x_restrict"`
-	TotalView       int        `gorm:"column:total_view" json:"total_view"`
-	TotalBookmarks  int        `gorm:"column:total_bookmarks" json:"total_bookmarks"`
-	Visible         bool       `gorm:"column:visible" json:"visible"`
-	IsMuted         bool       `gorm:"column:is_muted" json:"is_muted"`
-	IllustAIType    int        `gorm:"column:illust_ai_type" json:"illust_ai_type"`
-	IllustJSON      string     `gorm:"column:illust_json;not null" json:"illust_json"`
-	LastExportRunID string     `gorm:"column:last_export_run_id;not null;index" json:"last_export_run_id"`
-	LastSeenAt      time.Time  `gorm:"column:last_seen_at;not null" json:"last_seen_at"`
-	Removed         bool       `gorm:"column:removed;not null;default:false;index" json:"removed"`
-	RemovedAt       *time.Time `gorm:"column:removed_at" json:"removed_at"`
-	CreatedAt       time.Time  `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt       time.Time  `gorm:"column:updated_at" json:"updated_at"`
+	ID               uint       `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
+	PixivUserID      string     `gorm:"column:pixiv_user_id;not null;uniqueIndex:idx_bookmark_illust_user_restrict_illust" json:"pixiv_user_id"`
+	Restrict         string     `gorm:"column:restrict;not null;uniqueIndex:idx_bookmark_illust_user_restrict_illust" json:"restrict"`
+	IllustID         int64      `gorm:"column:illust_id;not null;uniqueIndex:idx_bookmark_illust_user_restrict_illust" json:"illust_id"`
+	Title            string     `gorm:"column:title" json:"title"`
+	Type             string     `gorm:"column:type" json:"type"`
+	UserID           int64      `gorm:"column:user_id" json:"user_id"`
+	UserName         string     `gorm:"column:user_name" json:"user_name"`
+	PageCount        int        `gorm:"column:page_count" json:"page_count"`
+	Width            int        `gorm:"column:width" json:"width"`
+	Height           int        `gorm:"column:height" json:"height"`
+	SanityLevel      int        `gorm:"column:sanity_level" json:"sanity_level"`
+	XRestrict        int        `gorm:"column:x_restrict" json:"x_restrict"`
+	TotalView        int        `gorm:"column:total_view" json:"total_view"`
+	TotalBookmarks   int        `gorm:"column:total_bookmarks" json:"total_bookmarks"`
+	Visible          bool       `gorm:"column:visible" json:"visible"`
+	IsMuted          bool       `gorm:"column:is_muted" json:"is_muted"`
+	IllustAIType     int        `gorm:"column:illust_ai_type" json:"illust_ai_type"`
+	IllustJSON       string     `gorm:"column:illust_json;not null" json:"illust_json"`
+	LastExportRunID  string     `gorm:"column:last_export_run_id;not null;index" json:"last_export_run_id"`
+	LastSeenAt       time.Time  `gorm:"column:last_seen_at;not null" json:"last_seen_at"`
+	MirrorStatus     int        `gorm:"column:mirror_status;not null;default:0;index" json:"mirror_status"`
+	MirrorRetryCount int        `gorm:"column:mirror_retry_count;not null;default:0" json:"mirror_retry_count"`
+	Removed          bool       `gorm:"column:removed;not null;default:false;index" json:"removed"`
+	RemovedAt        *time.Time `gorm:"column:removed_at" json:"removed_at"`
+	CreatedAt        time.Time  `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt        time.Time  `gorm:"column:updated_at" json:"updated_at"`
 }
 
 func (BookmarkIllust) TableName() string { return "bookmark_illusts" }

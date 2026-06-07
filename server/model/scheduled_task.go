@@ -3,7 +3,9 @@ package model
 import "time"
 
 const (
-	ScheduledTaskBookmarkExport = "bookmark_export"
+	ScheduledTaskBookmarkExport      = "bookmark_export"
+	ScheduledTaskBookmarkMirrorNew   = "bookmark_mirror_new"
+	ScheduledTaskBookmarkMirrorRetry = "bookmark_mirror_retry"
 
 	ScheduledTaskStatusRunning = "running"
 	ScheduledTaskStatusSuccess = "success"

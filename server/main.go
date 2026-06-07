@@ -46,6 +46,10 @@ func main() {
 	handler.BookmarkExportWorker = bookmarkExportWorker
 	bookmarkExportWorker.Start()
 
+	// Bookmark mirror scheduler — auto-enqueue bookmarks for mirroring
+	bookmarkMirrorScheduler := service.NewBookmarkMirrorScheduler()
+	bookmarkMirrorScheduler.Start()
+
 	// Initialize Gin Router
 	r := gin.New()
 	r.Use(middleware.DebugLogger())
