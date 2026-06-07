@@ -74,7 +74,7 @@ jobs:
         id: build
         uses: docker/build-push-action@v7
         with:
-          context: .
+          context: ./server
           file: ./server/Dockerfile
           platforms: ${{ matrix.platform }}
           outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
