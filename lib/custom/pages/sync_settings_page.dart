@@ -2,6 +2,7 @@ import 'package:bot_toast/bot_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:pixez/models/account.dart';
 import 'package:pixez/main.dart';
+import 'package:pixez/custom/pages/mirror_list_page.dart';
 import 'package:pixez/custom/services/sync_config.dart';
 import 'package:pixez/custom/services/sync_service.dart';
 
@@ -419,6 +420,27 @@ class _SyncSettingsPageState extends State<SyncSettingsPage> {
                             ),
                           ],
                         ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // Mirror management
+                    Card(
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: ListTile(
+                        leading: const Icon(Icons.collections),
+                        title: const Text('查看镜像'),
+                        subtitle: const Text('查看和管理已镜像的插画与小说'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const MirrorListPage(),
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ],

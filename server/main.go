@@ -77,6 +77,13 @@ func main() {
 		api.POST("/illusts/mirror/batch", handler.BatchCheckIllustMirror)
 		api.POST("/novels/:novel_id/mirror", handler.MirrorNovel)
 		api.GET("/novels/:novel_id/mirror", handler.CheckNovelMirror)
+
+		// Mirror management
+		api.GET("/mirror/illusts", handler.ListMirroredIllusts)
+		api.GET("/mirror/novels", handler.ListMirroredNovels)
+		api.DELETE("/mirror/illusts/:illust_id", handler.DeleteMirroredIllust)
+		api.DELETE("/mirror/novels/:novel_id", handler.DeleteMirroredNovel)
+		api.POST("/mirror/batch-delete", handler.BatchDeleteMirroredItems)
 	}
 
 	// Mirror Route Group with Basic Authentication

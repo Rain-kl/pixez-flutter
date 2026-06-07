@@ -656,3 +656,185 @@ func isNovelMirrored(novelID int64) bool {
 	}
 	return count > 0
 }
+
+// ListMirroredIllusts returns a paginated list of mirrored illustrations.
+func ListMirroredIllusts(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	var tasks []model.MirrorTask
+	var total int64
+
+	query := db.DB.Model(&model.MirrorTask{}).
+		Where("task_type = ? AND target_type = ?", model.MirrorTaskTypeIllust, model.MirrorTargetIllust)
+	query.Count(&total)
+
+	if err := query.
+		Order("updated_at DESC").
+		Offset((page - 1) * pageSize).
+		Limit(pageSize).
+		Find(&tasks).Error; err != nil {
+		response.RespondErrorWithStatus(c, http.StatusInternalServerError, "failed to list mirror tasks")
+		return
+	}
+
+	type MirrorIllustItem struct {
+		TaskID       string    `json:"task_id"`
+		IllustID     int64     `json:"illust_id"`
+		Status       string    `json:"status"`
+		SuccessCount int       `json:"success_count"`
+		TotalCount   int       `json:"total_count"`
+		HasMirror    bool      `json:"has_mirror"`
+		CreatedAt    time.Time `json:"created_at"`
+		UpdatedAt    time.Time `json:"updated_at"`
+	}
+
+	items := make([]MirrorIllustItem, 0, len(tasks))
+	for _, t := range tasks {
+		items = append(items, MirrorIllustItem{
+			TaskID:       t.ID,
+			IllustID:     t.TargetID,
+			Status:       t.Status,
+			SuccessCount: t.SuccessCount,
+			TotalCount:   t.TotalCount,
+			HasMirror:    t.SuccessCount > 0,
+			CreatedAt:    t.CreatedAt,
+			UpdatedAt:    t.UpdatedAt,
+		})
+	}
+
+	response.RespondSuccess(c, gin.H{
+		"items":     items,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	})
+}
+
+// ListMirroredNovels returns a paginated list of mirrored novels.
+func ListMirroredNovels(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	var tasks []model.MirrorTask
+	var total int64
+
+	query := db.DB.Model(&model.MirrorTask{}).
+		Where("task_type = ? AND target_type = ?", model.MirrorTaskTypeNovel, model.MirrorTargetNovel)
+	query.Count(&total)
+
+	if err := query.
+		Order("updated_at DESC").
+		Offset((page - 1) * pageSize).
+		Limit(pageSize).
+		Find(&tasks).Error; err != nil {
+		response.RespondErrorWithStatus(c, http.StatusInternalServerError, "failed to list mirror tasks")
+		return
+	}
+
+	type MirrorNovelItem struct {
+		TaskID    string    `json:"task_id"`
+		NovelID   int64     `json:"novel_id"`
+		Status    string    `json:"status"`
+		HasMirror bool      `json:"has_mirror"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+	}
+
+	items := make([]MirrorNovelItem, 0, len(tasks))
+	for _, t := range tasks {
+		items = append(items, MirrorNovelItem{
+			TaskID:    t.ID,
+			NovelID:   t.TargetID,
+			Status:    t.Status,
+			HasMirror: t.SuccessCount > 0,
+			CreatedAt: t.CreatedAt,
+			UpdatedAt: t.UpdatedAt,
+		})
+	}
+
+	response.RespondSuccess(c, gin.H{
+		"items":     items,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	})
+}
+
+// DeleteMirroredIllust deletes a mirrored illustration and its task.
+func DeleteMirroredIllust(c *gin.Context) {
+	illustID, ok := parseIllustIDParam(c)
+	if !ok {
+		return
+	}
+
+	db.DB.Where("illust_id = ?", illustID).Delete(&model.MirrorIllust{})
+	illustDir := filepath.Join(MirrorDir, strconv.FormatInt(illustID, 10))
+	os.RemoveAll(illustDir)
+	db.DB.Where("task_type = ? AND target_type = ? AND target_id = ?",
+		model.MirrorTaskTypeIllust, model.MirrorTargetIllust, illustID).
+		Delete(&model.MirrorTask{})
+
+	response.RespondSuccess(c, gin.H{"deleted": true, "illust_id": illustID})
+}
+
+// DeleteMirroredNovel deletes a mirrored novel and its task.
+func DeleteMirroredNovel(c *gin.Context) {
+	novelID, ok := parseNovelIDParam(c)
+	if !ok {
+		return
+	}
+
+	db.DB.Where("novel_id = ?", novelID).Delete(&model.MirrorNovel{})
+	db.DB.Where("task_type = ? AND target_type = ? AND target_id = ?",
+		model.MirrorTaskTypeNovel, model.MirrorTargetNovel, novelID).
+		Delete(&model.MirrorTask{})
+
+	response.RespondSuccess(c, gin.H{"deleted": true, "novel_id": novelID})
+}
+
+// BatchDeleteMirroredItems batch-deletes mirrored items by IDs.
+func BatchDeleteMirroredItems(c *gin.Context) {
+	var body struct {
+		TargetType string  `json:"target_type"` // "illust" or "novel"
+		IDs        []int64 `json:"ids"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil || len(body.IDs) == 0 {
+		response.RespondBadRequest(c, "invalid request body")
+		return
+	}
+
+	deletedCount := 0
+	for _, id := range body.IDs {
+		switch body.TargetType {
+		case "illust":
+			db.DB.Where("illust_id = ?", id).Delete(&model.MirrorIllust{})
+			illustDir := filepath.Join(MirrorDir, strconv.FormatInt(id, 10))
+			os.RemoveAll(illustDir)
+			db.DB.Where("task_type = ? AND target_type = ? AND target_id = ?",
+				model.MirrorTaskTypeIllust, model.MirrorTargetIllust, id).
+				Delete(&model.MirrorTask{})
+			deletedCount++
+		case "novel":
+			db.DB.Where("novel_id = ?", id).Delete(&model.MirrorNovel{})
+			db.DB.Where("task_type = ? AND target_type = ? AND target_id = ?",
+				model.MirrorTaskTypeNovel, model.MirrorTargetNovel, id).
+				Delete(&model.MirrorTask{})
+			deletedCount++
+		}
+	}
+
+	response.RespondSuccess(c, gin.H{"deleted_count": deletedCount})
+}

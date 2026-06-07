@@ -354,6 +354,86 @@ class SyncApi {
     }
   }
 
+  // Mirror management APIs
+
+  static Future<Map<String, dynamic>?> listMirroredIllusts({
+    int page = 1,
+    int pageSize = 20,
+  }) async {
+    if (!SyncConfig.enabled || SyncConfig.serverUrl.isEmpty) return null;
+    try {
+      final response = await getDioClient().get(
+        '/api/pixez/mirror/illusts',
+        queryParameters: {'page': page, 'page_size': pageSize},
+      );
+      if (response.statusCode == 200 && response.data?['success'] == true) {
+        return response.data['data'] as Map<String, dynamic>;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<Map<String, dynamic>?> listMirroredNovels({
+    int page = 1,
+    int pageSize = 20,
+  }) async {
+    if (!SyncConfig.enabled || SyncConfig.serverUrl.isEmpty) return null;
+    try {
+      final response = await getDioClient().get(
+        '/api/pixez/mirror/novels',
+        queryParameters: {'page': page, 'page_size': pageSize},
+      );
+      if (response.statusCode == 200 && response.data?['success'] == true) {
+        return response.data['data'] as Map<String, dynamic>;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<bool> deleteMirroredIllust(int illustId) async {
+    if (!SyncConfig.enabled || SyncConfig.serverUrl.isEmpty) return false;
+    try {
+      final response = await getDioClient().delete(
+        '/api/pixez/mirror/illusts/$illustId',
+      );
+      return response.statusCode == 200 && response.data?['success'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> deleteMirroredNovel(int novelId) async {
+    if (!SyncConfig.enabled || SyncConfig.serverUrl.isEmpty) return false;
+    try {
+      final response = await getDioClient().delete(
+        '/api/pixez/mirror/novels/$novelId',
+      );
+      return response.statusCode == 200 && response.data?['success'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> batchDeleteMirrored(
+    String targetType,
+    List<int> ids,
+  ) async {
+    if (!SyncConfig.enabled || SyncConfig.serverUrl.isEmpty) return false;
+    try {
+      final response = await getDioClient().post(
+        '/api/pixez/mirror/batch-delete',
+        data: {'target_type': targetType, 'ids': ids},
+      );
+      return response.statusCode == 200 && response.data?['success'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
 
   static String _basicAuth(String username, String password) {
     return 'Basic ${base64Encode(utf8.encode('$username:$password'))}';

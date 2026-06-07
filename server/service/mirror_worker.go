@@ -46,7 +46,29 @@ func NewMirrorWorker(mirrorDir string, downloadConcurrency int) *MirrorWorker {
 }
 
 func (w *MirrorWorker) Start() {
+	w.recoverStaleTasks()
 	go w.loop()
+}
+
+// recoverStaleTasks resets any tasks left in "processing" state from a
+// previous crash. Without this, they would be stuck forever because
+// claimQueuedTask only picks up "queued" tasks.
+func (w *MirrorWorker) recoverStaleTasks() {
+	now := time.Now()
+	result := db.DB.Model(&model.MirrorTask{}).
+		Where("status = ?", model.MirrorTaskStatusProcessing).
+		Updates(map[string]any{
+			"status":     model.MirrorTaskStatusQueued,
+			"locked_at":  nil,
+			"updated_at": now,
+		})
+	if result.Error != nil {
+		slog.Error("Failed to recover stale mirror tasks", "error", result.Error)
+		return
+	}
+	if result.RowsAffected > 0 {
+		slog.Info("Recovered stale mirror tasks from previous crash", "count", result.RowsAffected)
+	}
 }
 
 func (w *MirrorWorker) Stop() {

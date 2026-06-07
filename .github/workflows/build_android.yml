@@ -1,0 +1,125 @@
+name: Android Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.set-ver.outputs.version }}
+      prerelease: ${{ steps.set-ver.outputs.prerelease }}
+      sign: ${{ steps.check.outputs.sign }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - id: set-ver
+        run: |
+          version=$(git describe --tags --always)
+          if git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
+            prerelease=false
+          else
+            git tag "$version"
+            git push origin "refs/tags/$version"
+            prerelease=true
+          fi
+          echo "version=${version}" >> $GITHUB_OUTPUT
+          echo "prerelease=${prerelease}" >> $GITHUB_OUTPUT
+
+      - id: check
+        run: |
+          if [ ! -z "${{ secrets.RELEASE_KEY_STORE }}" ]; then
+            echo "sign=yes" >> $GITHUB_OUTPUT
+          fi
+
+  build:
+    needs: prepare
+    if: ${{ needs.prepare.outputs.sign }}
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: 17
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Release APK Sign
+        run: |
+          echo '${{ secrets.RELEASE_KEY_STORE }}' | base64 --decode > $GITHUB_WORKSPACE/android/app/key.jks
+          cat > $GITHUB_WORKSPACE/android/key.properties <<EOF
+          storePassword=${{ secrets.RELEASE_STORE_PASSWORD }}
+          keyPassword=${{ secrets.RELEASE_KEY_PASSWORD }}
+          keyAlias=${{ secrets.RELEASE_KEY_ALIAS }}
+          storeFile=$GITHUB_WORKSPACE/android/app/key.jks
+          EOF
+
+      - name: Build APK
+        run: |
+          flutter build apk \
+            --release \
+            --build-name="${VERSION}" \
+            --build-number=${{ github.run_number }} \
+            --dart-define=IS_GOOGLEPLAY=false
+
+      - name: Organize the Files
+        run: |
+          mkdir -p ${{ github.workspace }}/apk/
+          cp -rf ${{ github.workspace }}/build/app/outputs/flutter-apk/*.apk ${{ github.workspace }}/apk/
+          ls -la ${{ github.workspace }}/apk/
+
+      - name: Upload APK To Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixez-flutter-apk
+          path: ${{ github.workspace }}/apk/*.apk
+
+      - name: Generate Release Notes From Commits
+        run: |
+          prev_tag=$(git tag --sort=-creatordate | grep -vx "${VERSION}" | head -n 1)
+          if [ -n "${prev_tag}" ]; then
+            git log --no-merges --pretty='- %s (%h)' "${prev_tag}..${VERSION}" > "${{ github.workspace }}/release_notes.md"
+          else
+            git log --no-merges --pretty='- %s (%h)' "${VERSION}" > "${{ github.workspace }}/release_notes.md"
+          fi
+          if [ ! -s "${{ github.workspace }}/release_notes.md" ]; then
+            echo "- No commit messages found for this release." > "${{ github.workspace }}/release_notes.md"
+          fi
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ env.VERSION }}
+          tag_name: ${{ env.VERSION }}
+          body_path: ${{ github.workspace }}/release_notes.md
+          draft: false
+          prerelease: ${{ env.PRERELEASE == 'true' }}
+          files: ${{ github.workspace }}/apk/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
