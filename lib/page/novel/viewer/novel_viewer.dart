@@ -27,6 +27,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pixez/component/painter_avatar.dart';
 import 'package:pixez/component/pixiv_image.dart';
 import 'package:pixez/component/selectable_html.dart';
+import 'package:pixez/custom/services/novel_auto_mirror_service.dart';
 import 'package:pixez/custom/services/novel_mirror_service.dart';
 import 'package:pixez/custom/widgets/novel_mirror_badge.dart';
 import 'package:pixez/custom/widgets/novel_mirror_list_tile.dart';
@@ -92,6 +93,7 @@ class _NovelViewerPageState extends State<NovelViewerPage> {
       _controller?.jumpTo(_novelStore.bookedOffset);
     });
     _fetchNovel();
+    NovelAutoMirrorService.enqueueIfEnabled(widget.id);
     super.initState();
     initMethod();
   }

@@ -29,6 +29,11 @@ class SyncConfig {
   static bool get enabled => _prefs?.getBool('sync_enabled') ?? false;
   static set enabled(bool val) => _prefs?.setBool('sync_enabled', val);
 
+  static bool get autoMirrorNovels =>
+      _prefs?.getBool('sync_auto_mirror_novels') ?? true;
+  static set autoMirrorNovels(bool val) =>
+      _prefs?.setBool('sync_auto_mirror_novels', val);
+
   static int get syncInterval => _prefs?.getInt('sync_interval_minutes') ?? 3;
   static set syncInterval(int val) => _prefs?.setInt('sync_interval_minutes', val);
 

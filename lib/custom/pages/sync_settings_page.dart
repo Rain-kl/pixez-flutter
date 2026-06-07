@@ -20,6 +20,7 @@ class _SyncSettingsPageState extends State<SyncSettingsPage> {
   final _passwordController = TextEditingController();
   bool _syncEnabled = false;
   bool _isLoading = false;
+  bool _autoMirrorNovels = true;
   int _syncInterval = 3;
 
   @override
@@ -35,6 +36,7 @@ class _SyncSettingsPageState extends State<SyncSettingsPage> {
       _usernameController.text = SyncConfig.username;
       _passwordController.text = SyncConfig.password;
       _syncEnabled = SyncConfig.enabled;
+      _autoMirrorNovels = SyncConfig.autoMirrorNovels;
       _syncInterval = SyncConfig.syncInterval;
     });
   }
@@ -62,6 +64,7 @@ class _SyncSettingsPageState extends State<SyncSettingsPage> {
       SyncConfig.username = username;
       SyncConfig.password = password;
       SyncConfig.enabled = _syncEnabled;
+      SyncConfig.autoMirrorNovels = _autoMirrorNovels;
       SyncConfig.syncInterval = _syncInterval;
       if (_syncEnabled) {
         SyncService.startPeriodicSyncTimer();
@@ -260,6 +263,16 @@ class _SyncSettingsPageState extends State<SyncSettingsPage> {
                                 },
                               ),
                             ),
+                          SwitchListTile(
+                            title: const Text('自动镜像小说'),
+                            subtitle: const Text('打开小说详情时自动加入镜像队列'),
+                            value: _autoMirrorNovels,
+                            onChanged: (val) {
+                              setState(() {
+                                _autoMirrorNovels = val;
+                              });
+                            },
+                          ),
                         ],
                       ),
                     ),

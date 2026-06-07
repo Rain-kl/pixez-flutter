@@ -8,6 +8,7 @@
 4. 新增后端接口 `POST /api/pixez/novels/:novel_id/mirror` 与 `GET /api/pixez/novels/:novel_id/mirror`，语义与插画接口完全对称。
 5. 新增 `/mirror/v1/novel/detail` 读取缓存接口，返回 Pixiv 官方 `/v2/novel/detail` 形态 JSON，并重写图片域名。
 6. Flutter 前端在小说详情页的"更多"菜单中，新增 `NovelMirrorListTile` 组件，与 `MirrorListTile` 结构对称，但无需更新 Store（小说无需从镜像加载图片流）。
+7. Flutter 前端在打开小说详情页时，可以根据“设置 -> 数据同步 -> 自动镜像小说”配置自动调用入队接口。该功能默认开启，但仍受云端同步总开关与服务器地址配置约束。
 
 ---
 
@@ -90,6 +91,17 @@ mirror.GET("/v1/novel/detail", handler.GetMirroredNovelDetail)
 
 新增对应的代理方法。
 
+#### [MODIFY] `lib/custom/services/sync_config.dart`
+
+新增 `autoMirrorNovels` 配置，使用 SharedPreferences 保存，默认值为 `true`。该配置只控制客户端是否在小说详情页打开时自动入队，不影响手动镜像入口。
+
+#### [NEW] `lib/custom/services/novel_auto_mirror_service.dart`
+
+创建小说自动镜像服务：
+- 检查 `SyncConfig.enabled`、`SyncConfig.serverUrl` 与 `SyncConfig.autoMirrorNovels`
+- 在同一 App 会话内对已请求的小说 ID 做内存去重
+- 异步调用 `SyncService.mirrorNovel(id)`，失败时释放本次内存去重记录，允许后续再次尝试
+
 #### [NEW] `lib/custom/widgets/novel_mirror_list_tile.dart`
 
 创建 `NovelMirrorListTile` StatefulWidget，结构与 `MirrorListTile` 对称：
@@ -105,6 +117,17 @@ mirror.GET("/v1/novel/detail", handler.GetMirroredNovelDetail)
 NovelMirrorListTile(id: widget.id),
 ```
 
+在 `initState` 中调用：
+```dart
+NovelAutoMirrorService.enqueueIfEnabled(widget.id);
+```
+
+这是原小说详情页的唯一自动镜像接入口。
+
+#### [MODIFY] `lib/custom/pages/sync_settings_page.dart`
+
+在“启用云端同步”配置区域新增“自动镜像小说”开关，文案为“打开小说详情时自动加入镜像队列”。保存设置时同步写入 `SyncConfig.autoMirrorNovels`。
+
 ---
 
 ## Verification Plan
@@ -115,3 +138,5 @@ NovelMirrorListTile(id: widget.id),
 2. Worker 消费后，`mirror_novel` 表中存在 `novel_id` 对应记录，`detail_json` 和 `text_json` 均不为空
 3. `GET /api/pixez/novels/{id}/mirror` 返回 `mirrored: true`，`success_count=1`
 4. `/mirror/v1/novel/detail` 返回 Pixiv 形态 JSON，图片 URL 已重写为 `/mirror/pximg/...`
+5. 在“设置 -> 数据同步”中关闭“自动镜像小说”后，打开小说详情不应新增 `novel_mirror` 任务
+6. 默认配置下，打开小说详情应自动调用 `POST /api/pixez/novels/{id}/mirror`，重复打开同一小说不应在同一客户端会话内重复发起入队请求

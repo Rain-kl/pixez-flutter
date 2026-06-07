@@ -218,6 +218,17 @@ lib/custom/
 - 自定义功能应可关闭、可删除、可迁移。
 - 涉及平台工程的改动要说明签名、权限、分发和上游同步风险。
 
+### PixEz Sync 客户端扩展
+
+PixEz Sync 相关 Flutter 侧扩展集中在 `lib/custom/`：
+
+- `lib/custom/services/sync_config.dart` 保存同步服务器、账号、同步周期与小说自动镜像开关。
+- `lib/custom/services/sync_service.dart` / `sync_api.dart` 封装 `/api/pixez/**` 与 `/mirror/**` 请求，避免污染原 `ApiClient`。
+- `lib/custom/services/novel_auto_mirror_service.dart` 负责小说详情页打开后的自动镜像入队判断；原小说页面只保留一处入口调用。
+- `lib/custom/pages/sync_settings_page.dart` 承载“设置 -> 数据同步”的配置界面。
+
+小说自动镜像只在客户端配置启用、同步服务器地址存在且“自动镜像小说”开关开启时发起。入队请求仍使用后端 `POST /api/pixez/novels/{novel_id}/mirror`，后端通过通用任务唯一约束避免重复任务。
+
 ## 伴生后端服务 (PixEz Sync Server)
 
 关于同步后端的详细系统设计、接口定义与部署说明，详见设计文档 [pixez-sync-backend.md](pixez-sync-backend.md)。
