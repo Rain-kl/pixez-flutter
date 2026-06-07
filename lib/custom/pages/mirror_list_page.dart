@@ -1,10 +1,10 @@
 import 'package:bot_toast/bot_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:pixez/custom/services/sync_api.dart';
-import 'package:pixez/custom/services/sync_config.dart';
 import 'package:pixez/er/leader.dart';
-import 'package:pixez/page/picture/illust_store.dart';
+import 'package:pixez/page/novel/viewer/novel_viewer.dart';
 import 'package:pixez/page/picture/illust_lighting_page.dart';
+import 'package:pixez/page/picture/illust_store.dart';
 
 class MirrorListPage extends StatefulWidget {
   const MirrorListPage({Key? key}) : super(key: key);
@@ -309,6 +309,19 @@ class _MirrorListPageState extends State<MirrorListPage>
     );
   }
 
+  void _navigateToDetail(int id, String type) {
+    if (type == 'illust') {
+      Leader.push(
+        context,
+        IllustLightingPage(id: id, store: IllustStore(id, null)),
+      );
+    } else {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => NovelViewerPage(id: id)),
+      );
+    }
+  }
+
   Widget _buildListItem({
     required BuildContext context,
     required int id,
@@ -369,20 +382,11 @@ class _MirrorListPageState extends State<MirrorListPage>
           ? Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (hasMirror && type == 'illust')
+                if (hasMirror)
                   IconButton(
                     icon: const Icon(Icons.open_in_new, size: 20),
                     tooltip: '查看',
-                    onPressed: () {
-                      // Navigate to illust detail page using mirror data
-                      Leader.push(
-                        context,
-                        IllustLightingPage(
-                          id: id,
-                          store: IllustStore(id, null),
-                        ),
-                      );
-                    },
+                    onPressed: () => _navigateToDetail(id, type),
                   ),
                 IconButton(
                   icon: Icon(Icons.delete_outline, color: Colors.red[300], size: 20),
@@ -395,14 +399,8 @@ class _MirrorListPageState extends State<MirrorListPage>
       onTap: () {
         if (_selectMode) {
           _toggleSelect(id);
-        } else if (hasMirror && type == 'illust') {
-          Leader.push(
-            context,
-            IllustLightingPage(
-              id: id,
-              store: IllustStore(id, null),
-            ),
-          );
+        } else if (hasMirror) {
+          _navigateToDetail(id, type);
         }
       },
       onLongPress: () {
