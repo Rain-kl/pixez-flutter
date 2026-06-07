@@ -91,7 +91,8 @@ abstract class _NovelStoreBase with Store {
     } catch (e) {
       print(e);
       // Try mirror fallback before giving up.
-      final mirrorOk = await NovelMirrorService.fetchFromMirror(this);
+      final mirrorOk =
+          await NovelMirrorService.fetchFromMirror(this as NovelStore);
       if (!mirrorOk) {
         errorMessage = e.toString();
       }
