@@ -396,6 +396,90 @@ func (w *MirrorWorker) markTaskFailed(taskID string, message string, retryURLsJS
 	return db.DB.Model(&model.MirrorTask{}).Where("id = ?", taskID).Updates(updates).Error
 }
 
+// RetryFailedDownloads re-downloads the URLs in retryURLs for the given illust,
+// appends newly succeeded files to the existing mirror_illust record, and updates
+// the mirror_task counters. Returns (newSuccess, newFailed, error).
+func (w *MirrorWorker) RetryFailedDownloads(task model.MirrorTask) (int, int, error) {
+	if task.RetryURLsJSON == "" {
+		return 0, 0, nil
+	}
+	var retryURLs []string
+	if err := json.Unmarshal([]byte(task.RetryURLsJSON), &retryURLs); err != nil {
+		return 0, 0, fmt.Errorf("parse retry_urls_json: %w", err)
+	}
+	if len(retryURLs) == 0 {
+		return 0, 0, nil
+	}
+
+	illustDir := filepath.Join(w.MirrorDir, fmt.Sprintf("%d", task.TargetID))
+	if err := os.MkdirAll(illustDir, 0755); err != nil {
+		return 0, 0, fmt.Errorf("ensure mirror dir: %w", err)
+	}
+
+	newFiles, stillFailed := w.downloadImages(task.ID, task.TargetID, retryURLs, illustDir)
+
+	if len(newFiles) == 0 {
+		return 0, len(stillFailed), nil
+	}
+
+	// Merge new files into the existing mirror_illust.image_files_json.
+	var existingFiles []ImageFileRecord
+	var record model.MirrorIllust
+	if err := db.DB.Where("illust_id = ?", task.TargetID).First(&record).Error; err != nil {
+		return 0, 0, fmt.Errorf("read mirror_illust: %w", err)
+	}
+	if record.ImageFilesJSON != "" {
+		_ = json.Unmarshal([]byte(record.ImageFilesJSON), &existingFiles)
+	}
+
+	// Deduplicate by filename.
+	existingSet := make(map[string]bool)
+	for _, f := range existingFiles {
+		existingSet[f.Filename] = true
+	}
+	for _, f := range newFiles {
+		if !existingSet[f.Filename] {
+			existingFiles = append(existingFiles, f)
+		}
+	}
+	mergedJSON, _ := json.Marshal(existingFiles)
+
+	stillFailedJSON, _ := json.Marshal(stillFailed)
+	now := time.Now()
+
+	err := db.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.MirrorIllust{}).
+			Where("illust_id = ?", task.TargetID).
+			Updates(map[string]any{
+				"image_files_json": string(mergedJSON),
+				"updated_at":       now,
+			}).Error; err != nil {
+			return err
+		}
+
+		newSuccessCount := task.SuccessCount + len(newFiles)
+		newFailedCount := len(stillFailed)
+		var retryJSON any
+		if len(stillFailed) > 0 {
+			retryJSON = string(stillFailedJSON)
+		} else {
+			retryJSON = ""
+		}
+		return tx.Model(&model.MirrorTask{}).
+			Where("id = ?", task.ID).
+			Updates(map[string]any{
+				"success_count":   newSuccessCount,
+				"failed_count":    newFailedCount,
+				"retry_urls_json": retryJSON,
+				"updated_at":      now,
+			}).Error
+	})
+	if err != nil {
+		return 0, 0, err
+	}
+	return len(newFiles), len(stillFailed), nil
+}
+
 func collectIllustImageURLs(detail PixivIllustDetail) []string {
 	seen := make(map[string]bool)
 	var urls []string

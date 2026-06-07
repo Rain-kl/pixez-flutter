@@ -22,28 +22,35 @@ const (
 // BookmarkMirrorScheduler periodically scans bookmark_illusts for items
 // that need mirroring and enqueues them into mirror_tasks.
 //
-// Two scheduled loops:
-//   - newLoop:    every 1 minute — picks mirror_status=0 (unmirrored)
-//   - retryLoop:  every 3 minutes — picks mirror_status=-1 (failed) with retry < 3
+// Three scheduled loops:
+//   - newLoop:       every 1 minute  — picks mirror_status=0 (unmirrored)
+//   - retryLoop:     every 3 minutes — picks mirror_status=-1 (failed) with retry < 3
+//   - retryImgLoop:  every 10 minutes — retries partially failed downloads (failed_count > 0)
 type BookmarkMirrorScheduler struct {
-	NewInterval   time.Duration
-	RetryInterval time.Duration
-	stopCh        chan struct{}
-	newRunMu      sync.Mutex
-	retryRunMu    sync.Mutex
+	NewInterval      time.Duration
+	RetryInterval    time.Duration
+	RetryImgInterval time.Duration
+	mirrorWorker     *MirrorWorker
+	stopCh           chan struct{}
+	newRunMu         sync.Mutex
+	retryRunMu       sync.Mutex
+	retryImgRunMu    sync.Mutex
 }
 
-func NewBookmarkMirrorScheduler() *BookmarkMirrorScheduler {
+func NewBookmarkMirrorScheduler(worker *MirrorWorker) *BookmarkMirrorScheduler {
 	return &BookmarkMirrorScheduler{
-		NewInterval:   1 * time.Minute,
-		RetryInterval: 3 * time.Minute,
-		stopCh:        make(chan struct{}),
+		NewInterval:      1 * time.Minute,
+		RetryInterval:    3 * time.Minute,
+		RetryImgInterval: 10 * time.Minute,
+		mirrorWorker:     worker,
+		stopCh:           make(chan struct{}),
 	}
 }
 
 func (s *BookmarkMirrorScheduler) Start() {
 	go s.newLoop()
 	go s.retryLoop()
+	go s.retryImgLoop()
 }
 
 func (s *BookmarkMirrorScheduler) Stop() {
@@ -113,21 +120,28 @@ func (s *BookmarkMirrorScheduler) enqueueNewMirrors() (int, error) {
 	enqueued := 0
 	now := time.Now()
 	for _, bk := range bookmarks {
-		_, err := enqueueMirrorTaskForIllust(bk.IllustID, false)
+		task, err := enqueueMirrorTaskForIllust(bk.IllustID, false)
 		if err != nil {
 			if errors.Is(err, gorm.ErrDuplicatedKey) {
-				// Task already exists — mark bookmark as mirroring.
 				slog.Debug("Mirror task already queued, skipping", "illustID", bk.IllustID)
 			} else {
 				slog.Error("Failed to enqueue mirror task", "illustID", bk.IllustID, "error", err)
 				continue
 			}
 		}
-		// Set bookmark to mirroring status.
+
+		// If the task already succeeded, mark the bookmark as done immediately
+		// instead of setting it to mirroring — the worker won't re-process a
+		// successful task, so leaving it at 2 would be permanent.
+		status := model.BookmarkMirrorMirroring
+		if task.SuccessCount > 0 {
+			status = model.BookmarkMirrorDone
+		}
+
 		if err := db.DB.Model(&model.BookmarkIllust{}).
 			Where("id = ?", bk.ID).
 			Updates(map[string]any{
-				"mirror_status": model.BookmarkMirrorMirroring,
+				"mirror_status": status,
 				"updated_at":    now,
 			}).Error; err != nil {
 			slog.Error("Failed to update bookmark mirror_status", "illustID", bk.IllustID, "error", err)
@@ -220,6 +234,83 @@ func (s *BookmarkMirrorScheduler) retryFailedMirrors() (int, error) {
 			continue
 		}
 		retried++
+	}
+	return retried, nil
+}
+
+// ---------------------------------------------------------------------------
+// Image retry loop — every 10 minutes
+// ---------------------------------------------------------------------------
+
+func (s *BookmarkMirrorScheduler) retryImgLoop() {
+	s.ensureScheduledTask(model.ScheduledTaskBookmarkMirrorRetryImg, s.RetryImgInterval)
+
+	for {
+		wait := s.timeUntilNextRun(model.ScheduledTaskBookmarkMirrorRetryImg, s.RetryImgInterval)
+		slog.Debug("Bookmark mirror (retry images) scheduled", "wait", wait.Round(time.Second))
+		timer := time.NewTimer(wait)
+		select {
+		case <-s.stopCh:
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
+		s.runRetryImgCycle()
+	}
+}
+
+func (s *BookmarkMirrorScheduler) runRetryImgCycle() {
+	if !s.retryImgRunMu.TryLock() {
+		return
+	}
+	defer s.retryImgRunMu.Unlock()
+
+	name := model.ScheduledTaskBookmarkMirrorRetryImg
+	s.updateScheduledStart(name)
+
+	start := time.Now()
+	retried, err := s.retryFailedImages()
+	elapsed := time.Since(start)
+
+	s.updateScheduledEnd(name, elapsed, retried, err)
+	if err != nil {
+		slog.Error("Bookmark mirror (retry images) cycle failed", "error", err, "elapsed", elapsed.Round(time.Millisecond))
+	} else if retried > 0 {
+		slog.Info("Bookmark mirror (retry images) cycle completed", "retried", retried, "elapsed", elapsed.Round(time.Millisecond))
+	}
+}
+
+// retryFailedImages finds mirror_tasks with failed_count > 0 that already
+// succeeded overall, and re-downloads the failed image URLs. This handles
+// partial failures (e.g., 5/10 images downloaded) without resetting the
+// entire task.
+func (s *BookmarkMirrorScheduler) retryFailedImages() (int, error) {
+	var tasks []model.MirrorTask
+	if err := db.DB.Where(
+		"target_type = ? AND status = ? AND failed_count > 0",
+		model.MirrorTargetIllust,
+		model.MirrorTaskStatusSuccess,
+	).Order("updated_at asc").
+		Find(&tasks).Error; err != nil {
+		return 0, fmt.Errorf("query tasks with failed images: %w", err)
+	}
+	if len(tasks) == 0 {
+		return 0, nil
+	}
+
+	retried := 0
+	for _, task := range tasks {
+		newOK, newFailed, err := s.mirrorWorker.RetryFailedDownloads(task)
+		if err != nil {
+			slog.Error("Image retry failed", "taskID", task.ID, "illustID", task.TargetID, "error", err)
+			continue
+		}
+		if newOK > 0 {
+			retried++
+			slog.Info("Image retry succeeded",
+				"taskID", task.ID, "illustID", task.TargetID,
+				"newSuccess", newOK, "stillFailed", newFailed)
+		}
 	}
 	return retried, nil
 }
