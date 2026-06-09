@@ -17,8 +17,7 @@ class SyncLoginPage extends StatefulWidget {
 class _SyncLoginPageState extends State<SyncLoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _urlController = TextEditingController();
-  final _usernameController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final _accessTokenController = TextEditingController();
 
   bool _isConnected = false;
   bool _isLoading = false;
@@ -36,12 +35,10 @@ class _SyncLoginPageState extends State<SyncLoginPage> {
     });
     await SyncConfig.ensureInitialized();
     _urlController.text = SyncConfig.serverUrl;
-    _usernameController.text = SyncConfig.username;
-    _passwordController.text = SyncConfig.password;
+    _accessTokenController.text = SyncConfig.accessToken;
 
     if (_urlController.text.isNotEmpty &&
-        _usernameController.text.isNotEmpty &&
-        _passwordController.text.isNotEmpty) {
+        _accessTokenController.text.isNotEmpty) {
       // Auto ping to see if we can connect
       _testConnection(silent: true);
     } else {
@@ -61,20 +58,14 @@ class _SyncLoginPageState extends State<SyncLoginPage> {
     });
 
     final url = _urlController.text.trim();
-    final username = _usernameController.text.trim();
-    final password = _passwordController.text.trim();
+    final accessToken = _accessTokenController.text.trim();
 
-    final ok = await SyncService.ping(
-      url: url,
-      username: username,
-      password: password,
-    );
+    final ok = await SyncService.ping(url: url, accessToken: accessToken);
 
     if (ok) {
       // Save config and enable sync
       SyncConfig.serverUrl = url;
-      SyncConfig.username = username;
-      SyncConfig.password = password;
+      SyncConfig.accessToken = accessToken;
       SyncConfig.enabled = true;
       SyncService.startPeriodicSyncTimer();
 
@@ -169,7 +160,7 @@ class _SyncLoginPageState extends State<SyncLoginPage> {
 
       // Fetch global store and navigate home
       await accountStore.fetch();
-      
+
       // Download and restore user data from cloud (先删后插) in background
       BotToast.showText(text: '正在从云端恢复个人数据...');
       SyncService.downloadAndRestoreUserData(pixivUser.id).then((success) {
@@ -178,7 +169,7 @@ class _SyncLoginPageState extends State<SyncLoginPage> {
           SyncService.startPeriodicSyncTimer();
         }
       });
-      
+
       BotToast.showText(text: '登录成功');
       Leader.pushUntilHome(context);
     } catch (e) {
@@ -193,8 +184,7 @@ class _SyncLoginPageState extends State<SyncLoginPage> {
   @override
   void dispose() {
     _urlController.dispose();
-    _usernameController.dispose();
-    _passwordController.dispose();
+    _accessTokenController.dispose();
     super.dispose();
   }
 
@@ -281,44 +271,27 @@ class _SyncLoginPageState extends State<SyncLoginPage> {
                   if (val == null || val.trim().isEmpty) {
                     return '服务器地址不能为空';
                   }
-                  if (!val.startsWith('http://') && !val.startsWith('https://')) {
+                  if (!val.startsWith('http://') &&
+                      !val.startsWith('https://')) {
                     return '必须以 http:// 或 https:// 开头';
                   }
                   return null;
                 },
               ),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _usernameController,
-                      decoration: const InputDecoration(
-                        labelText: '用户名',
-                        prefixIcon: Icon(Icons.person),
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                      validator: (val) =>
-                          (val == null || val.trim().isEmpty) ? '用户名不能为空' : null,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _passwordController,
-                      obscureText: true,
-                      decoration: const InputDecoration(
-                        labelText: '密码',
-                        prefixIcon: Icon(Icons.lock),
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                      validator: (val) =>
-                          (val == null || val.trim().isEmpty) ? '密码不能为空' : null,
-                    ),
-                  ),
-                ],
+              TextFormField(
+                controller: _accessTokenController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'AccessToken',
+                  hintText: '在 PixezServer 设置中创建的访问令牌',
+                  prefixIcon: Icon(Icons.vpn_key),
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                validator: (val) => (val == null || val.trim().isEmpty)
+                    ? 'AccessToken 不能为空'
+                    : null,
               ),
               const SizedBox(height: 16),
               ElevatedButton.icon(
@@ -361,7 +334,7 @@ class _SyncLoginPageState extends State<SyncLoginPage> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 32.0),
             child: Text(
-              '输入您的同步后端地址与凭证并点击连接，即可在此处选择您已备份的 Pixiv 账号快速登录。',
+              '输入您的同步后端地址与 AccessToken 并点击连接，即可在此处选择您已备份的 Pixiv 账号快速登录。',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.hintColor,
@@ -380,20 +353,15 @@ class _SyncLoginPageState extends State<SyncLoginPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.people_outline,
-              size: 60,
-              color: theme.hintColor,
-            ),
+            Icon(Icons.people_outline, size: 60, color: theme.hintColor),
             const SizedBox(height: 12),
-            Text(
-              '服务器上没有保存任何用户',
-              style: theme.textTheme.titleMedium,
-            ),
+            Text('服务器上没有保存任何用户', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(
               '开启设备同步后，登录成功的账号会自动上报到服务器。',
-              style: theme.textTheme.bodyMedium?.copyWith(color: theme.hintColor),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.hintColor,
+              ),
             ),
           ],
         ),
@@ -429,7 +397,9 @@ class _SyncLoginPageState extends State<SyncLoginPage> {
                 ),
                 child: ListTile(
                   leading: CircleAvatar(
-                    backgroundImage: image.isNotEmpty ? NetworkImage(image) : null,
+                    backgroundImage: image.isNotEmpty
+                        ? NetworkImage(image)
+                        : null,
                     child: image.isEmpty ? const Icon(Icons.person) : null,
                   ),
                   title: Text(name),

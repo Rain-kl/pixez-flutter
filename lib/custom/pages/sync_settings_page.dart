@@ -16,8 +16,7 @@ class SyncSettingsPage extends StatefulWidget {
 class _SyncSettingsPageState extends State<SyncSettingsPage> {
   final _formKey = GlobalKey<FormState>();
   final _urlController = TextEditingController();
-  final _usernameController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final _accessTokenController = TextEditingController();
   bool _syncEnabled = false;
   bool _isLoading = false;
   bool _autoMirrorNovels = true;
@@ -33,8 +32,7 @@ class _SyncSettingsPageState extends State<SyncSettingsPage> {
     await SyncConfig.ensureInitialized();
     setState(() {
       _urlController.text = SyncConfig.serverUrl;
-      _usernameController.text = SyncConfig.username;
-      _passwordController.text = SyncConfig.password;
+      _accessTokenController.text = SyncConfig.accessToken;
       _syncEnabled = SyncConfig.enabled;
       _autoMirrorNovels = SyncConfig.autoMirrorNovels;
       _syncInterval = SyncConfig.syncInterval;
@@ -49,20 +47,14 @@ class _SyncSettingsPageState extends State<SyncSettingsPage> {
     });
 
     final url = _urlController.text.trim();
-    final username = _usernameController.text.trim();
-    final password = _passwordController.text.trim();
+    final accessToken = _accessTokenController.text.trim();
 
-    // Verify credentials first by pinging
-    final ok = await SyncService.ping(
-      url: url,
-      username: username,
-      password: password,
-    );
+    // Verify access token first by pinging.
+    final ok = await SyncService.ping(url: url, accessToken: accessToken);
 
     if (ok) {
       SyncConfig.serverUrl = url;
-      SyncConfig.username = username;
-      SyncConfig.password = password;
+      SyncConfig.accessToken = accessToken;
       SyncConfig.enabled = _syncEnabled;
       SyncConfig.autoMirrorNovels = _autoMirrorNovels;
       SyncConfig.syncInterval = _syncInterval;
@@ -111,16 +103,18 @@ class _SyncSettingsPageState extends State<SyncSettingsPage> {
         // Temporarily force enable sync logic in service
         final syncWasEnabled = SyncConfig.enabled;
         SyncConfig.enabled = true;
-        
+
         final ok = await SyncService.upsertUser(account);
         if (ok) {
           successCount++;
         }
-        
+
         SyncConfig.enabled = syncWasEnabled;
       }
 
-      BotToast.showText(text: '同步完成: 成功 $successCount/${localAccounts.length} 个账号');
+      BotToast.showText(
+        text: '同步完成: 成功 $successCount/${localAccounts.length} 个账号',
+      );
     } catch (e) {
       BotToast.showText(text: '同步失败: $e');
     } finally {
@@ -149,12 +143,16 @@ class _SyncSettingsPageState extends State<SyncSettingsPage> {
       _isLoading = true;
     });
     try {
-      final syncedTables = await SyncService.backupUserDataSelective(accountStore.now!.userId);
+      final syncedTables = await SyncService.backupUserDataSelective(
+        accountStore.now!.userId,
+      );
       if (syncedTables != null) {
         if (syncedTables.isEmpty) {
           BotToast.showText(text: '备份成功：云端数据已是最新，无需同步');
         } else {
-          final tableNames = syncedTables.map((t) => _tableChineseNames[t] ?? t).join('、');
+          final tableNames = syncedTables
+              .map((t) => _tableChineseNames[t] ?? t)
+              .join('、');
           BotToast.showText(text: '备份成功！已增量同步变动表：$tableNames');
         }
       } else {
@@ -178,12 +176,16 @@ class _SyncSettingsPageState extends State<SyncSettingsPage> {
       _isLoading = true;
     });
     try {
-      final syncedTables = await SyncService.restoreUserDataSelective(accountStore.now!.userId);
+      final syncedTables = await SyncService.restoreUserDataSelective(
+        accountStore.now!.userId,
+      );
       if (syncedTables != null) {
         if (syncedTables.isEmpty) {
           BotToast.showText(text: '恢复成功：本地数据与云端完全一致，无需同步');
         } else {
-          final tableNames = syncedTables.map((t) => _tableChineseNames[t] ?? t).join('、');
+          final tableNames = syncedTables
+              .map((t) => _tableChineseNames[t] ?? t)
+              .join('、');
           BotToast.showText(text: '恢复成功！已增量下载还原变动表：$tableNames');
         }
       } else {
@@ -201,8 +203,7 @@ class _SyncSettingsPageState extends State<SyncSettingsPage> {
   @override
   void dispose() {
     _urlController.dispose();
-    _usernameController.dispose();
-    _passwordController.dispose();
+    _accessTokenController.dispose();
     super.dispose();
   }
 
@@ -211,9 +212,7 @@ class _SyncSettingsPageState extends State<SyncSettingsPage> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('数据同步设置'),
-      ),
+      appBar: AppBar(title: const Text('数据同步设置')),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -247,12 +246,30 @@ class _SyncSettingsPageState extends State<SyncSettingsPage> {
                               trailing: DropdownButton<int>(
                                 value: _syncInterval,
                                 items: const [
-                                  DropdownMenuItem(value: 1, child: Text('每 1 分钟')),
-                                  DropdownMenuItem(value: 3, child: Text('每 3 分钟 (默认)')),
-                                  DropdownMenuItem(value: 5, child: Text('每 5 分钟')),
-                                  DropdownMenuItem(value: 10, child: Text('每 10 分钟')),
-                                  DropdownMenuItem(value: 30, child: Text('每 30 分钟')),
-                                  DropdownMenuItem(value: 60, child: Text('每 60 分钟')),
+                                  DropdownMenuItem(
+                                    value: 1,
+                                    child: Text('每 1 分钟'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 3,
+                                    child: Text('每 3 分钟 (默认)'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 5,
+                                    child: Text('每 5 分钟'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 10,
+                                    child: Text('每 10 分钟'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 30,
+                                    child: Text('每 30 分钟'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 60,
+                                    child: Text('每 60 分钟'),
+                                  ),
                                 ],
                                 onChanged: (val) {
                                   if (val != null) {
@@ -318,32 +335,19 @@ class _SyncSettingsPageState extends State<SyncSettingsPage> {
                             ),
                             const SizedBox(height: 16),
                             TextFormField(
-                              controller: _usernameController,
-                              decoration: const InputDecoration(
-                                labelText: '用户名',
-                                prefixIcon: Icon(Icons.person),
-                                border: OutlineInputBorder(),
-                                isDense: true,
-                              ),
-                              validator: (val) =>
-                                  (val == null || val.trim().isEmpty)
-                                      ? '用户名不能为空'
-                                      : null,
-                            ),
-                            const SizedBox(height: 16),
-                            TextFormField(
-                              controller: _passwordController,
+                              controller: _accessTokenController,
                               obscureText: true,
                               decoration: const InputDecoration(
-                                labelText: '密码',
-                                prefixIcon: Icon(Icons.lock),
+                                labelText: 'AccessToken',
+                                hintText: '在 PixezServer 设置中创建的访问令牌',
+                                prefixIcon: Icon(Icons.vpn_key),
                                 border: OutlineInputBorder(),
                                 isDense: true,
                               ),
                               validator: (val) =>
                                   (val == null || val.trim().isEmpty)
-                                      ? '密码不能为空'
-                                      : null,
+                                  ? 'AccessToken 不能为空'
+                                  : null,
                             ),
                             const SizedBox(height: 20),
                             Row(
@@ -380,8 +384,9 @@ class _SyncSettingsPageState extends State<SyncSettingsPage> {
                             const SizedBox(height: 8),
                             Text(
                               '手动将本地保存的所有账户上报至服务器。在首次配置完服务器，或者新设备需要上传本地历史账户时使用。',
-                              style: theme.textTheme.bodyMedium
-                                  ?.copyWith(color: theme.hintColor),
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.hintColor,
+                              ),
                             ),
                             const SizedBox(height: 16),
                             ElevatedButton.icon(
@@ -389,8 +394,10 @@ class _SyncSettingsPageState extends State<SyncSettingsPage> {
                               icon: const Icon(Icons.upload),
                               label: const Text('立即同步本地所有账户'),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: theme.colorScheme.secondaryContainer,
-                                foregroundColor: theme.colorScheme.onSecondaryContainer,
+                                backgroundColor:
+                                    theme.colorScheme.secondaryContainer,
+                                foregroundColor:
+                                    theme.colorScheme.onSecondaryContainer,
                               ),
                             ),
                             const Divider(height: 32),
@@ -403,8 +410,9 @@ class _SyncSettingsPageState extends State<SyncSettingsPage> {
                             const SizedBox(height: 8),
                             Text(
                               '备份当前登录账户的本地屏蔽列表、历史浏览记录与搜索标签至服务器，或者从服务器下载备份覆盖恢复至本地（先删后插）。',
-                              style: theme.textTheme.bodyMedium
-                                  ?.copyWith(color: theme.hintColor),
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.hintColor,
+                              ),
                             ),
                             const SizedBox(height: 16),
                             Wrap(
@@ -425,8 +433,10 @@ class _SyncSettingsPageState extends State<SyncSettingsPage> {
                                   icon: const Icon(Icons.cloud_download),
                                   label: const Text('恢复当前账户数据'),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: theme.colorScheme.tertiaryContainer,
-                                    foregroundColor: theme.colorScheme.onTertiaryContainer,
+                                    backgroundColor:
+                                        theme.colorScheme.tertiaryContainer,
+                                    foregroundColor:
+                                        theme.colorScheme.onTertiaryContainer,
                                   ),
                                 ),
                               ],

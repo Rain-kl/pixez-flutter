@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:dio/dio.dart';
 import 'package:pixez/custom/services/sync_config.dart';
 import 'package:pixez/models/account.dart';
@@ -14,23 +12,15 @@ class SyncApi {
       ),
     );
 
-    dio.options.headers['Authorization'] = _basicAuth(
-      SyncConfig.username,
-      SyncConfig.password,
-    );
+    dio.options.headers.addAll(_authHeaders(SyncConfig.accessToken));
     return dio;
   }
 
-  static Future<bool> ping({
-    String? url,
-    String? username,
-    String? password,
-  }) async {
+  static Future<bool> ping({String? url, String? accessToken}) async {
     final targetUrl = url ?? SyncConfig.serverUrl;
-    final targetUser = username ?? SyncConfig.username;
-    final targetPass = password ?? SyncConfig.password;
+    final targetToken = accessToken ?? SyncConfig.accessToken;
 
-    if (targetUrl.isEmpty || targetUser.isEmpty || targetPass.isEmpty) {
+    if (targetUrl.isEmpty || targetToken.isEmpty) {
       return false;
     }
 
@@ -42,10 +32,10 @@ class SyncApi {
           receiveTimeout: const Duration(seconds: 5),
         ),
       );
-      dio.options.headers['Authorization'] = _basicAuth(targetUser, targetPass);
+      dio.options.headers.addAll(_authHeaders(targetToken));
 
       final response = await dio.get('/api/pixez/ping');
-      return response.statusCode == 200 && response.data?['success'] == true;
+      return _isSuccess(response);
     } catch (_) {
       return false;
     }
@@ -54,10 +44,7 @@ class SyncApi {
   static Future<List<dynamic>> listUsers() async {
     try {
       final response = await getDioClient().get('/api/pixez/users');
-      if (response.statusCode == 200 && response.data?['success'] == true) {
-        return response.data['data'] as List<dynamic>;
-      }
-      return [];
+      return (_unwrapData(response) as List<dynamic>?) ?? [];
     } catch (_) {
       return [];
     }
@@ -68,10 +55,7 @@ class SyncApi {
       final response = await getDioClient().get(
         '/api/pixez/users/$pixivUserId',
       );
-      if (response.statusCode == 200 && response.data?['success'] == true) {
-        return response.data['data'] as Map<String, dynamic>;
-      }
-      return null;
+      return _unwrapData(response) as Map<String, dynamic>?;
     } catch (_) {
       return null;
     }
@@ -100,7 +84,7 @@ class SyncApi {
         '/api/pixez/users/${account.userId}',
         data: payload,
       );
-      return response.statusCode == 200 && response.data?['success'] == true;
+      return _isSuccess(response);
     } catch (_) {
       return false;
     }
@@ -111,7 +95,7 @@ class SyncApi {
       final response = await getDioClient().delete(
         '/api/pixez/users/$pixivUserId',
       );
-      return response.statusCode == 200 && response.data?['success'] == true;
+      return _isSuccess(response);
     } catch (_) {
       return false;
     }
@@ -122,8 +106,8 @@ class SyncApi {
       final response = await getDioClient().get(
         '/api/pixez/users/$userId/sync-data/hashes',
       );
-      if (response.statusCode == 200 && response.data?['success'] == true) {
-        final data = response.data['data'] as Map<String, dynamic>;
+      final data = _unwrapData(response);
+      if (data is Map<String, dynamic>) {
         return data.map((key, value) => MapEntry(key, value.toString()));
       }
       return null;
@@ -141,7 +125,7 @@ class SyncApi {
         '/api/pixez/users/$userId/sync-data',
         data: payload,
       );
-      return response.statusCode == 200 && response.data?['success'] == true;
+      return _isSuccess(response);
     } catch (_) {
       return false;
     }
@@ -159,12 +143,7 @@ class SyncApi {
         '/api/pixez/users/$userId/sync-data',
         queryParameters: queryParams,
       );
-      if (response.statusCode != 200 ||
-          response.data == null ||
-          response.data['success'] != true) {
-        return null;
-      }
-      return response.data['data'] as Map<String, dynamic>;
+      return _unwrapData(response) as Map<String, dynamic>?;
     } catch (_) {
       return null;
     }
@@ -178,10 +157,7 @@ class SyncApi {
       final response = await getDioClient().get(
         '/api/pixez/illusts/$id/mirror',
       );
-      if (response.statusCode == 200 && response.data?['success'] == true) {
-        return response.data['data'] as Map<String, dynamic>;
-      }
-      return null;
+      return _unwrapData(response) as Map<String, dynamic>?;
     } catch (_) {
       return null;
     }
@@ -216,10 +192,10 @@ class SyncApi {
   }
 
   static Response _unwrapPixivPayload(Response response) {
-    if (response.statusCode == 200 && response.data?['success'] == true) {
+    if (_isSuccess(response)) {
       return Response(
         requestOptions: response.requestOptions,
-        data: response.data['data'],
+        data: _unwrapData(response),
         statusCode: response.statusCode,
         statusMessage: response.statusMessage,
         headers: response.headers,
@@ -228,7 +204,7 @@ class SyncApi {
         extra: response.extra,
       );
     }
-    throw Exception(response.data?['message'] ?? 'Sync server request failed');
+    throw Exception(_failureMessage(response));
   }
 
   static Future<bool> isIllustMirrored(int id) async {
@@ -245,9 +221,9 @@ class SyncApi {
         '/api/pixez/illusts/mirror/batch',
         data: {'illust_ids': ids},
       );
-      if (response.statusCode == 200 && response.data?['success'] == true) {
-        final List<dynamic> mirroredIds =
-            response.data['data']['mirrored_ids'] ?? [];
+      final data = _unwrapData(response);
+      if (data is Map<String, dynamic>) {
+        final List<dynamic> mirroredIds = data['mirrored_ids'] ?? [];
         return mirroredIds.map((e) => e as int).toSet();
       }
       return {};
@@ -265,9 +241,9 @@ class SyncApi {
         '/api/pixez/novels/mirror/batch',
         data: {'novel_ids': ids},
       );
-      if (response.statusCode == 200 && response.data?['success'] == true) {
-        final List<dynamic> mirroredIds =
-            response.data['data']['mirrored_ids'] ?? [];
+      final data = _unwrapData(response);
+      if (data is Map<String, dynamic>) {
+        final List<dynamic> mirroredIds = data['mirrored_ids'] ?? [];
         return mirroredIds.map((e) => e as int).toSet();
       }
       return {};
@@ -284,10 +260,7 @@ class SyncApi {
       final response = await getDioClient().post(
         '/api/pixez/illusts/$id/mirror',
       );
-      if (response.statusCode == 200 && response.data?['success'] == true) {
-        return response.data['data'] as Map<String, dynamic>;
-      }
-      return null;
+      return _unwrapData(response) as Map<String, dynamic>?;
     } catch (_) {
       return null;
     }
@@ -312,13 +285,8 @@ class SyncApi {
       return null;
     }
     try {
-      final response = await getDioClient().get(
-        '/api/pixez/novels/$id/mirror',
-      );
-      if (response.statusCode == 200 && response.data?['success'] == true) {
-        return response.data['data'] as Map<String, dynamic>;
-      }
-      return null;
+      final response = await getDioClient().get('/api/pixez/novels/$id/mirror');
+      return _unwrapData(response) as Map<String, dynamic>?;
     } catch (_) {
       return null;
     }
@@ -337,10 +305,7 @@ class SyncApi {
       final response = await getDioClient().post(
         '/api/pixez/novels/$id/mirror',
       );
-      if (response.statusCode == 200 && response.data?['success'] == true) {
-        return response.data['data'] as Map<String, dynamic>;
-      }
-      return null;
+      return _unwrapData(response) as Map<String, dynamic>?;
     } catch (_) {
       return null;
     }
@@ -386,10 +351,7 @@ class SyncApi {
         '/api/pixez/mirror/illusts',
         queryParameters: {'page': page, 'page_size': pageSize},
       );
-      if (response.statusCode == 200 && response.data?['success'] == true) {
-        return response.data['data'] as Map<String, dynamic>;
-      }
-      return null;
+      return _unwrapData(response) as Map<String, dynamic>?;
     } catch (_) {
       return null;
     }
@@ -405,10 +367,7 @@ class SyncApi {
         '/api/pixez/mirror/novels',
         queryParameters: {'page': page, 'page_size': pageSize},
       );
-      if (response.statusCode == 200 && response.data?['success'] == true) {
-        return response.data['data'] as Map<String, dynamic>;
-      }
-      return null;
+      return _unwrapData(response) as Map<String, dynamic>?;
     } catch (_) {
       return null;
     }
@@ -420,7 +379,7 @@ class SyncApi {
       final response = await getDioClient().delete(
         '/api/pixez/mirror/illusts/$illustId',
       );
-      return response.statusCode == 200 && response.data?['success'] == true;
+      return _isSuccess(response);
     } catch (_) {
       return false;
     }
@@ -432,7 +391,7 @@ class SyncApi {
       final response = await getDioClient().delete(
         '/api/pixez/mirror/novels/$novelId',
       );
-      return response.statusCode == 200 && response.data?['success'] == true;
+      return _isSuccess(response);
     } catch (_) {
       return false;
     }
@@ -448,14 +407,38 @@ class SyncApi {
         '/api/pixez/mirror/batch-delete',
         data: {'target_type': targetType, 'ids': ids},
       );
-      return response.statusCode == 200 && response.data?['success'] == true;
+      return _isSuccess(response);
     } catch (_) {
       return false;
     }
   }
 
+  static Map<String, String> _authHeaders(String accessToken) {
+    if (accessToken.isEmpty) {
+      return {};
+    }
+    return {'Authorization': 'Bearer $accessToken'};
+  }
 
-  static String _basicAuth(String username, String password) {
-    return 'Basic ${base64Encode(utf8.encode('$username:$password'))}';
+  static bool _isSuccess(Response response) {
+    final data = response.data;
+    return response.statusCode == 200 &&
+        data is Map &&
+        (data['error_msg'] == null || data['error_msg'] == '');
+  }
+
+  static dynamic _unwrapData(Response response) {
+    if (!_isSuccess(response)) {
+      return null;
+    }
+    return (response.data as Map)['data'];
+  }
+
+  static String _failureMessage(Response response) {
+    final data = response.data;
+    if (data is Map && data['error_msg'] != null) {
+      return data['error_msg'].toString();
+    }
+    return 'Sync server request failed';
   }
 }

@@ -20,11 +20,9 @@ class SyncConfig {
     _prefs?.setString('sync_server_url', val);
   }
 
-  static String get username => _prefs?.getString('sync_username') ?? '';
-  static set username(String val) => _prefs?.setString('sync_username', val);
-
-  static String get password => _prefs?.getString('sync_password') ?? '';
-  static set password(String val) => _prefs?.setString('sync_password', val);
+  static String get accessToken => _prefs?.getString('sync_access_token') ?? '';
+  static set accessToken(String val) =>
+      _prefs?.setString('sync_access_token', val);
 
   static bool get enabled => _prefs?.getBool('sync_enabled') ?? false;
   static set enabled(bool val) => _prefs?.setBool('sync_enabled', val);
@@ -35,16 +33,23 @@ class SyncConfig {
       _prefs?.setBool('sync_auto_mirror_novels', val);
 
   static int get syncInterval => _prefs?.getInt('sync_interval_minutes') ?? 3;
-  static set syncInterval(int val) => _prefs?.setInt('sync_interval_minutes', val);
+  static set syncInterval(int val) =>
+      _prefs?.setInt('sync_interval_minutes', val);
 
-  static int get lastSyncTimestamp => _prefs?.getInt('sync_last_timestamp') ?? 0;
-  static set lastSyncTimestamp(int val) => _prefs?.setInt('sync_last_timestamp', val);
+  static int get lastSyncTimestamp =>
+      _prefs?.getInt('sync_last_timestamp') ?? 0;
+  static set lastSyncTimestamp(int val) =>
+      _prefs?.setInt('sync_last_timestamp', val);
 
   static String getLastSyncedHash(String userId, String tableName) {
     return _prefs?.getString('sync_hash_${userId}_$tableName') ?? '';
   }
 
-  static Future<void> setLastSyncedHash(String userId, String tableName, String hash) async {
+  static Future<void> setLastSyncedHash(
+    String userId,
+    String tableName,
+    String hash,
+  ) async {
     await _prefs?.setString('sync_hash_${userId}_$tableName', hash);
   }
 }

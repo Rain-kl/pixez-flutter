@@ -5,8 +5,8 @@ import 'package:pixez/custom/services/sync_user_data_service.dart';
 import 'package:pixez/models/account.dart';
 
 class SyncService {
-  static Future<bool> ping({String? url, String? username, String? password}) {
-    return SyncApi.ping(url: url, username: username, password: password);
+  static Future<bool> ping({String? url, String? accessToken}) {
+    return SyncApi.ping(url: url, accessToken: accessToken);
   }
 
   static Future<List<dynamic>> listUsers() {
@@ -68,7 +68,6 @@ class SyncService {
   static Future<Response?> getMirroredNovelText(int id) {
     return SyncApi.getMirroredNovelText(id);
   }
-
 
   static Future<Map<String, String>?> fetchRemoteHashes(String userId) {
     return SyncUserDataService.fetchRemoteHashes(userId);
