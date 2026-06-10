@@ -99,8 +99,8 @@ Android 配置位于：
 - `targetSdk = 35`
 - `ndkVersion = "28.2.13676358"`
 - ABI：`armeabi-v7a`、`arm64-v8a`、`x86_64`
-- 普通包名：`com.perol.pixez`
-- Google Play 包名：`com.perol.play.pixez`
+- 普通包名：`com.perol.pixez`（release 版会添加 `.feat` 后缀，即 `com.perol.pixez.feat`；debug 版会添加 `.debug` 后缀，即 `com.perol.pixez.debug`）
+- Google Play 包名：`com.perol.play.pixez`（release 版会添加 `.feat` 后缀，即 `com.perol.play.pixez.feat`；debug 版会添加 `.debug` 后缀，即 `com.perol.play.pixez.debug`）
 
 普通 release APK：
 
