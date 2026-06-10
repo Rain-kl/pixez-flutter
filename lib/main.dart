@@ -96,23 +96,13 @@ class MyApp extends StatefulWidget {
   _MyAppState createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
-  AppLifecycleState? _appState;
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    setState(() {
-      _appState = state;
-    });
-  }
-
+class _MyAppState extends State<MyApp> {
   @override
   void dispose() {
     saveStore.dispose();
     topStore.dispose();
     fetcher.stop();
     subscription.cancel();
-    if (Platform.isIOS) WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
@@ -132,8 +122,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     muteStore.init();
 
     super.initState();
-    if (Platform.isIOS) WidgetsBinding.instance.addObserver(this);
-
     Future.delayed(Duration.zero, () {
       SingleInstancePlugin.argsParser(widget.arguments);
     });
@@ -152,6 +140,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       const SystemUiOverlayStyle(
         systemNavigationBarColor: Colors.transparent,
         systemNavigationBarDividerColor: Colors.transparent,
+        systemNavigationBarContrastEnforced: false,
         statusBarColor: Colors.transparent,
       ),
     );
@@ -196,6 +185,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                     value: SystemUiOverlayStyle(
                       systemNavigationBarColor: Colors.transparent,
                       systemNavigationBarDividerColor: Colors.transparent,
+                      systemNavigationBarContrastEnforced: false,
                       statusBarColor: Colors.transparent,
                     ),
                     child: SplashPage(),
@@ -204,7 +194,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               ),
               title: 'PixEz',
               builder: (context, child) {
-                if (Platform.isIOS) child = _buildMaskBuilder(context, child);
                 child = botToastBuilder(context, child);
                 I18n.context = context;
                 return child;
@@ -256,28 +245,4 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     );
   }
 
-  _buildMaskBuilder(BuildContext context, Widget? widget) {
-    if (userSetting.nsfwMask) {
-      final needShowMask = (Platform.isAndroid
-          ? (_appState == AppLifecycleState.paused ||
-                _appState == AppLifecycleState.paused)
-          : _appState == AppLifecycleState.inactive);
-      return Stack(
-        children: [
-          widget ?? Container(),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 500),
-            child: needShowMask
-                ? Container(
-                    color: Theme.of(context).canvasColor,
-                    child: Center(child: Icon(Icons.privacy_tip_outlined)),
-                  )
-                : null,
-          ),
-        ],
-      );
-    } else {
-      return widget;
-    }
-  }
 }
