@@ -222,13 +222,26 @@ lib/custom/
 
 PixEz Sync 相关 Flutter 侧扩展集中在 `lib/custom/`：
 
-- `lib/custom/services/sync_config.dart` 保存同步服务器、账号、同步周期与小说自动镜像开关。
+- `lib/custom/services/sync_config.dart` 保存同步服务器、Wavelet AccessToken、同步周期与小说自动镜像开关。
 - `lib/custom/services/sync_service.dart` / `sync_api.dart` 封装 `/api/pixez/**` 与 `/mirror/**` 请求，避免污染原 `ApiClient`。
 - `lib/custom/services/novel_auto_mirror_service.dart` 负责小说详情页打开后的自动镜像入队判断；原小说页面只保留一处入口调用。
 - `lib/custom/pages/sync_settings_page.dart` 承载“设置 -> 数据同步”的配置界面。
 
-小说自动镜像只在客户端配置启用、同步服务器地址存在且“自动镜像小说”开关开启时发起。入队请求仍使用后端 `POST /api/pixez/novels/{novel_id}/mirror`，后端通过通用任务唯一约束避免重复任务。
+Flutter custom 层只在 service 中集中处理 Wavelet envelope：`error_msg == ""` 视为成功，页面不直接解析 envelope。认证头统一使用 `Authorization: Bearer <access_token>`，不再配置 PixEz Basic Auth。
 
-## 伴生后端服务 (PixEz Sync Server)
+小说自动镜像只在客户端配置启用、同步服务器地址存在且“自动镜像小说”开关开启时发起。入队请求仍使用后端 `POST /api/pixez/novels/{novel_id}/mirror`，后端通过 PixEz read-model 和 Asynq 任务状态避免重复入队。
 
-关于同步后端的详细系统设计、接口定义与部署说明，详见设计文档 [pixez-sync-backend.md](pixez-sync-backend.md)。
+## 伴生后端服务 (PixezServer/Wavelet)
+
+当前同步后端位于 `PixezServer/`，基于 Wavelet 的 Gin 路由、GORM、goose 双方言迁移、AccessToken 登录体系、Asynq 任务、TaskExecution 可观测性和 Upload/File 存储能力实现。
+
+职责边界：
+
+- `internal/apps/pixez/`：PixEz HTTP handler、mirror 读取、收藏 removed 查询、镜像管理 API 和 PixEz task handler。
+- `internal/service/pixez/`：Pixiv App API 请求、token refresh、placeholder 检测、收藏导出、镜像处理、Legacy 导入和 Upload 映射。
+- `internal/db/migrator/goose/`：PostgreSQL/SQLite 双方言 PixEz 表结构迁移。
+- `internal/task/`：PixEz Asynq 类型、Admin 可下发任务元数据、handler 注册和 worker mux。
+
+`/api/pixez/**` 保留业务路径并统一返回 `{ "error_msg": "", "data": ... }`；`/mirror/**` 也需要 Wavelet AccessToken，但返回 Pixiv 形态 JSON 或二进制文件，不套系统 envelope。
+
+详细设计见 [pixez-server-wavelet.md](pixez-server-wavelet.md)。旧 [pixez-sync-backend.md](pixez-sync-backend.md) 仅作为 legacy `server/` 迁移参考。

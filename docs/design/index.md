@@ -9,6 +9,7 @@ PixEz Flutter 是使用 Flutter 编写的 pixiv 第三方客户端，面向 Andr
 本仓库同时包含：
 
 - Flutter 应用主体。
+- PixezServer/Wavelet 伴生后端，用于 PixEz 同步、镜像、收藏导出、任务与文件存储。
 - 多平台原生宿主工程。
 - 本地 Flutter 插件 `plugins/rhttp`。
 - 国际化资源、图片资源、字体资源。
@@ -30,6 +31,12 @@ PixEz Flutter 是使用 Flutter 编写的 pixiv 第三方客户端，面向 Andr
 - pixiv 官方服务与第三方图片/检索服务。
 - 应用商店、GitHub Release、证书签名、分发渠道。
 - 用户设备上的系统权限、网络环境和代理/DNS 能力。
+
+## 设计文档索引
+
+- [architecture.md](architecture.md)：Flutter 客户端、custom 扩展与 PixezServer 的模块拓扑。
+- [pixez-server-wavelet.md](pixez-server-wavelet.md)：PixEz Sync 业务迁移到 PixezServer/Wavelet 后的当前设计。
+- [pixez-sync-backend.md](pixez-sync-backend.md)：旧 `server/` 的 legacy 后端设计，仅作为迁移参考，不代表当前实现。
 
 ## 核心对象
 
@@ -84,6 +91,12 @@ PixEz Flutter 是使用 Flutter 编写的 pixiv 第三方客户端，面向 Andr
 │   ├── guideline/
 │   ├── plan/
 │   └── reference/
+├── PixezServer/
+│   ├── internal/apps/pixez/
+│   ├── internal/service/pixez/
+│   ├── internal/db/migrator/goose/
+│   ├── internal/task/
+│   └── frontend/
 ├── fastlane/
 ├── gradle/
 ├── lib/
@@ -161,6 +174,7 @@ Flutter 应用主体。
 - `docs/deployment/`：构建、部署和维护文档。
 - `docs/reference/`：配置、命令行、参数等参考手册。
 - `docs/plan/`：正在进行的实现计划和交接记录。
+- `PixezServer/`：Wavelet 伴生后端，承载 PixEz 账号同步、镜像、收藏导出、Legacy 导入、Upload 存储和 Admin 任务。
 - `.github/workflows/`：GitHub Actions 构建工作流，目前包含 iOS 和 Windows。
 - `fastlane/`：移动端发布元数据。
 - `test/`：Flutter 测试入口。

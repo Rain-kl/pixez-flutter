@@ -1,6 +1,8 @@
-# PixEz Sync Backend 设计文档
+# PixEz Sync Backend Legacy 设计文档
 
-本文档描述 PixEz Sync Backend 的系统设计、核心数据模型、API 设计以及部署方案。
+> 状态：legacy server 设计，仅作为旧 `server/` 目录和迁移来源参考。当前实现已经迁移到 `PixezServer/`，采用 Wavelet AccessToken、Asynq、TaskExecution、Upload/File 存储和 `{ "error_msg": "", "data": ... }` 响应格式。当前设计请阅读 [pixez-server-wavelet.md](pixez-server-wavelet.md)。
+
+本文档描述旧 PixEz Sync Backend 的系统设计、核心数据模型、API 设计以及部署方案。文中的 Basic Auth、`mirror_tasks` 轮询队列、`PIXEZ_AUTH_USER` / `PIXEZ_AUTH_PASS`、独立 `MirrorDir` 等内容不代表 PixezServer/Wavelet 当前实现。
 
 ## 1. 概述与产品范围
 
