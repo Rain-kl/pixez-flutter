@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:pixez/custom/services/sync_config.dart';
 import 'package:pixez/custom/services/sync_service.dart';
@@ -14,10 +16,8 @@ class MirrorFallbackService {
       return null;
     }
     final Response? response = await SyncService.getMirroredIllustDetail(id);
-    final data = response?.data;
-    if (response?.statusCode == 200 &&
-        data is Map &&
-        data['illust'] is Map<String, dynamic>) {
+    final data = _decodeMap(response?.data);
+    if (response?.statusCode == 200 && data['illust'] is Map<String, dynamic>) {
       return Illusts.fromJson(data['illust'] as Map<String, dynamic>);
     }
     return null;
@@ -52,5 +52,18 @@ class MirrorFallbackService {
 
   static bool _isLimitUnknownUrl(String? url) {
     return url != null && url.contains(limitUnknownImage);
+  }
+
+  static Map<String, dynamic> _decodeMap(dynamic data) {
+    if (data is Map<String, dynamic>) {
+      return data;
+    }
+    if (data is String) {
+      final decoded = jsonDecode(data);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+    }
+    return const {};
   }
 }

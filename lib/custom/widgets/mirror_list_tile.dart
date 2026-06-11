@@ -1,5 +1,6 @@
 import 'package:bot_toast/bot_toast.dart';
 import 'package:flutter/material.dart';
+import 'package:pixez/custom/services/mirror_source_service.dart';
 import 'package:pixez/custom/services/sync_config.dart';
 import 'package:pixez/custom/services/sync_service.dart';
 import 'package:pixez/models/illust.dart';
@@ -85,17 +86,10 @@ class _MirrorListTileState extends State<MirrorListTile> {
                 Navigator.of(context).pop();
                 final cancel = BotToast.showLoading();
                 try {
-                  final response = await SyncService.getMirroredIllustDetail(
-                    widget.id,
+                  final success = await MirrorSourceService.loadIllustIntoStore(
+                    widget.illustStore,
                   );
-                  if (response != null &&
-                      response.statusCode == 200 &&
-                      response.data != null &&
-                      response.data['illust'] != null) {
-                    final result = Illusts.fromJson(response.data['illust']);
-                    widget.illustStore.illusts = result;
-                    widget.illustStore.isBookmark = result.isBookmarked;
-                    widget.illustStore.state = result.isBookmarked ? 2 : 0;
+                  if (success) {
                     BotToast.showText(text: "已从镜像加速加载");
                   } else {
                     BotToast.showText(text: "从镜像加载失败");

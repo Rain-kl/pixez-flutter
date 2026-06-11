@@ -140,3 +140,7 @@ NovelAutoMirrorService.enqueueIfEnabled(widget.id);
 4. `/mirror/v1/novel/detail` 返回 Pixiv 形态 JSON，图片 URL 已重写为 `/mirror/pximg/...`
 5. 在“设置 -> 数据同步”中关闭“自动镜像小说”后，打开小说详情不应新增 `novel_mirror` 任务
 6. 默认配置下，打开小说详情应自动调用 `POST /api/pixez/novels/{id}/mirror`，重复打开同一小说不应在同一客户端会话内重复发起入队请求
+
+### 普通详情页主动切换镜像源
+
+普通小说详情页点击“已镜像”时，客户端必须同时从 `/mirror/webview/v2/novel` 与 `/mirror/v1/novel/detail` 读取正文和详情，并使用镜像数据完整覆盖当前 store。即使页面已持有官方详情，也不能跳过镜像详情读取；两次请求都成功后再统一更新 observable 状态，避免出现正文与详情来源不一致或半更新状态。

@@ -1,5 +1,6 @@
 import 'package:bot_toast/bot_toast.dart';
 import 'package:flutter/material.dart';
+import 'package:pixez/custom/services/mirror_source_service.dart';
 import 'package:pixez/custom/services/sync_api.dart';
 import 'package:pixez/er/leader.dart';
 import 'package:pixez/page/novel/viewer/novel_viewer.dart';
@@ -271,7 +272,9 @@ class _MirrorListPageState extends State<MirrorListPage>
                                     : item['novel_id'])
                                 as int;
                         final status = item['status'] as String? ?? '';
-                        final hasMirror = item['has_mirror'] as bool? ?? false;
+                        final successCount =
+                            (item['success_count'] as num?)?.toInt() ?? 0;
+                        final canView = successCount > 0 || status == 'success';
                         final updatedAt = item['updated_at'] as String? ?? '';
                         final title = item['title'] as String? ?? '';
                         final userName = item['user_name'] as String? ?? '';
@@ -281,7 +284,7 @@ class _MirrorListPageState extends State<MirrorListPage>
                           context: context,
                           id: id,
                           status: status,
-                          hasMirror: hasMirror,
+                          canView: canView,
                           updatedAt: updatedAt,
                           selected: selected,
                           type: _isIllustTab ? 'illust' : 'novel',
@@ -336,12 +339,20 @@ class _MirrorListPageState extends State<MirrorListPage>
     );
   }
 
-  void _navigateToDetail(int id, String type) {
+  Future<void> _navigateToDetail(int id, String type) async {
     if (type == 'illust') {
-      Leader.push(
-        context,
-        IllustLightingPage(id: id, store: IllustStore(id, null)),
-      );
+      final cancel = BotToast.showLoading();
+      final store = IllustStore(id, null);
+      final loaded = await MirrorSourceService.loadIllustIntoStore(store);
+      cancel();
+      if (!mounted) {
+        return;
+      }
+      if (!loaded) {
+        BotToast.showText(text: '镜像详情加载失败');
+        return;
+      }
+      Leader.push(context, IllustLightingPage(id: id, store: store));
     } else {
       Navigator.of(context).push(
         MaterialPageRoute(
@@ -355,7 +366,7 @@ class _MirrorListPageState extends State<MirrorListPage>
     required BuildContext context,
     required int id,
     required String status,
-    required bool hasMirror,
+    required bool canView,
     required String updatedAt,
     required bool selected,
     required String type,
@@ -414,7 +425,7 @@ class _MirrorListPageState extends State<MirrorListPage>
           ? Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (hasMirror)
+                if (canView)
                   IconButton(
                     icon: const Icon(Icons.open_in_new, size: 20),
                     tooltip: '查看',
@@ -435,7 +446,7 @@ class _MirrorListPageState extends State<MirrorListPage>
       onTap: () {
         if (_selectMode) {
           _toggleSelect(id);
-        } else if (hasMirror) {
+        } else if (canView) {
           _navigateToDetail(id, type);
         }
       },

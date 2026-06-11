@@ -188,6 +188,7 @@ mirror := r.Group("/mirror", middleware.BasicAuth(cfg.AuthUser, cfg.AuthPass))
 * `isIllustMirrored(int id)`: 请求 `GET /api/pixez/illusts/{id}/mirror`，读取统一响应内的 `data.mirrored`。
 * `mirrorIllust(int id)`: 请求 `POST /api/pixez/illusts/{id}/mirror`，请求体为空或不携带业务字段。该请求只负责入队，立即返回任务状态，不等待镜像完成。
 * `getMirroredIllustDetail(int id)`: 请求 `GET /mirror/v1/illust/detail?illust_id={id}`，获取 Pixiv 官方响应形态的本地镜像详情。
+* 普通插画详情页点击“已镜像”时，由 custom service 统一解析镜像响应并原子更新 `IllustStore`，不得在菜单组件内直接假设响应一定是 JSON Map 后分别修改 observable 字段。
 
 以上接口不再接收或发送 `pixivUserId`，镜像业务的入参只保留插画 ID。
 
