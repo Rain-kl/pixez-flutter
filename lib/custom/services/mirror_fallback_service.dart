@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:pixez/custom/services/sync_config.dart';
 import 'package:pixez/custom/services/sync_service.dart';
+import 'package:pixez/er/lprinter.dart';
 import 'package:pixez/models/illust.dart';
 
 class MirrorFallbackService {
@@ -18,8 +19,20 @@ class MirrorFallbackService {
     final Response? response = await SyncService.getMirroredIllustDetail(id);
     final data = _decodeMap(response?.data);
     if (response?.statusCode == 200 && data['illust'] is Map<String, dynamic>) {
-      return Illusts.fromJson(data['illust'] as Map<String, dynamic>);
+      final illust = Illusts.fromJson(data['illust'] as Map<String, dynamic>);
+      LPrinter.d(
+        '[MirrorDetail] parsed id=$id '
+        'squareMedium=${illust.imageUrls.squareMedium} '
+        'medium=${illust.imageUrls.medium} '
+        'large=${illust.imageUrls.large} '
+        'original=${illust.metaSinglePage?.originalImageUrl}',
+      );
+      return illust;
     }
+    LPrinter.d(
+      '[MirrorDetail] invalid response id=$id status=${response?.statusCode} '
+      'hasIllust=${data['illust'] is Map<String, dynamic>}',
+    );
     return null;
   }
 
@@ -33,6 +46,21 @@ class MirrorFallbackService {
       return null;
     }
     return '${SyncConfig.serverUrl}/mirror/pximg${uri.path}';
+  }
+
+  static bool isMirrorImageUrl(String? url) {
+    if (url == null || !enabled) {
+      return false;
+    }
+    final uri = Uri.tryParse(url);
+    final serverUri = Uri.tryParse(SyncConfig.serverUrl);
+    if (uri == null || serverUri == null) {
+      return false;
+    }
+    return uri.scheme == serverUri.scheme &&
+        uri.host == serverUri.host &&
+        uri.port == serverUri.port &&
+        uri.path.startsWith('/mirror/pximg/');
   }
 
   static bool isLimitUnknownIllust(Illusts illust) {

@@ -35,8 +35,7 @@ PixEz Flutter 是使用 Flutter 编写的 pixiv 第三方客户端，面向 Andr
 ## 设计文档索引
 
 - [architecture.md](architecture.md)：Flutter 客户端、custom 扩展与 PixezServer 的模块拓扑。
-- [pixez-server-wavelet.md](pixez-server-wavelet.md)：PixEz Sync 业务迁移到 PixezServer/Wavelet 后的当前设计。
-- [pixez-sync-backend.md](pixez-sync-backend.md)：旧 `server/` 的 legacy 后端设计，仅作为迁移参考，不代表当前实现。
+- [pixez-server-wavelet.md](pixez-server-wavelet.md)：PixEzServer/Wavelet 伴生后端完整设计文档，含架构、数据模型、异步任务、API 接口与客户端接入。
 
 ## 核心对象
 

@@ -18,11 +18,13 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
 import 'package:dio_compatibility_layer/dio_compatibility_layer.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_cache_manager_dio/flutter_cache_manager_dio.dart';
-
 import 'package:pixez/custom/services/mirror_fallback_service.dart';
+import 'package:pixez/custom/services/pixiv_cache_manager.dart';
 import 'package:pixez/er/hoster.dart';
 import 'package:pixez/er/illust_cacher.dart';
+import 'package:pixez/er/lprinter.dart';
 import 'package:pixez/er/pixiv_image_source.dart';
 import 'package:pixez/main.dart';
 import 'package:pixez/network/pixez_network_settings.dart';
@@ -37,7 +39,7 @@ const ImageSHost = "s.pximg.net";
 // 如果你恰好看到这个实现方法实例，且对你有些帮助或者启发：
 // 听一首Mili-Salt, Pepper, Birds, And the Thought Police吧 🎵
 
-DioCacheManager? pixivCacheManager = DioCacheManager.instance;
+BaseCacheManager? pixivCacheManager = PixivCacheManager.instance;
 
 class PixEzCacheHeaderData {
   final String key;
@@ -93,6 +95,7 @@ class PixivImage extends StatefulWidget {
     dio.httpClientAdapter = ConversionLayerAdapter(client);
     _cacheDio = dio;
     DioCacheManager.initialize(dio);
+    pixivCacheManager = PixivCacheManager.instance;
   }
 }
 
@@ -185,9 +188,20 @@ class _PixivImageState extends State<PixivImage> {
     );
   }
 
-  Widget _buildErrorWidget(BuildContext context, String failedUrl, Object _) {
+  Widget _buildErrorWidget(
+    BuildContext context,
+    String failedUrl,
+    Object error,
+  ) {
+    LPrinter.d(
+      '[PixivImage] failed url=$failedUrl currentUrl=$url error=$error',
+    );
     final mirrorUrl = MirrorFallbackService.mirrorImageUrl(failedUrl);
     if (mirrorUrl != null && mirrorUrl != url) {
+      LPrinter.d(
+        '[PixivImage] switching to mirror failedUrl=$failedUrl '
+        'mirrorUrl=$mirrorUrl',
+      );
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || url == mirrorUrl) return;
         setState(() {

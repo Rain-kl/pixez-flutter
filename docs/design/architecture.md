@@ -224,8 +224,6 @@ PixEz Sync 相关 Flutter 侧扩展集中在 `lib/custom/`：
 
 - `lib/custom/services/sync_config.dart` 保存同步服务器、Wavelet AccessToken、同步周期与小说自动镜像开关。
 - `lib/custom/services/sync_service.dart` / `sync_api.dart` 封装 `/api/pixez/**` 与 `/mirror/**` 请求，避免污染原 `ApiClient`。
-- `lib/custom/services/mirror_fallback_service.dart` / `mirror_source_service.dart` / `novel_mirror_service.dart` 统一负责镜像响应解析和详情 store 更新。普通详情页主动选择“已镜像”时必须完整使用镜像详情覆盖当前官方数据，并兼容 Dio 返回 JSON 对象或 JSON 字符串；页面组件不得自行拆解镜像响应或直接分散修改 observable 状态。
-- 镜像管理列表必须依据后端实际返回的 `success_count` / `status` 判断记录是否可查看，不依赖未定义的客户端字段；从镜像管理打开插画或小说时都必须先走镜像读取接口，不得先请求官方详情。
 - `lib/custom/services/novel_auto_mirror_service.dart` 负责小说详情页打开后的自动镜像入队判断；原小说页面只保留一处入口调用。
 - `lib/custom/pages/sync_settings_page.dart` 承载“设置 -> 数据同步”的配置界面。
 
@@ -246,4 +244,4 @@ Flutter custom 层只在 service 中集中处理 Wavelet envelope：`error_msg =
 
 `/api/pixez/**` 保留业务路径并统一返回 `{ "error_msg": "", "data": ... }`；`/mirror/**` 也需要 Wavelet AccessToken，但返回 Pixiv 形态 JSON 或二进制文件，不套系统 envelope。
 
-详细设计见 [pixez-server-wavelet.md](pixez-server-wavelet.md)。旧 [pixez-sync-backend.md](pixez-sync-backend.md) 仅作为 legacy `server/` 迁移参考。
+详细设计见 [pixez-server-wavelet.md](pixez-server-wavelet.md)，包含完整数据模型、任务体系与 API 接口说明。旧 [pixez-sync-backend.md](pixez-sync-backend.md) 为已废弃的独立后端 legacy 参考。

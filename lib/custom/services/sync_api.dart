@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:pixez/custom/services/sync_config.dart';
+import 'package:pixez/er/lprinter.dart';
 import 'package:pixez/models/account.dart';
 
 class SyncApi {
@@ -268,14 +269,28 @@ class SyncApi {
 
   static Future<Response?> getMirroredIllustDetail(int id) async {
     if (!SyncConfig.enabled || SyncConfig.serverUrl.isEmpty) {
+      LPrinter.d(
+        '[MirrorDetail] skipped id=$id enabled=${SyncConfig.enabled} '
+        'serverUrlConfigured=${SyncConfig.serverUrl.isNotEmpty}',
+      );
       return null;
     }
     try {
-      return getDioClient().get(
+      LPrinter.d(
+        '[MirrorDetail] request id=$id '
+        'url=${SyncConfig.serverUrl}/mirror/v1/illust/detail',
+      );
+      final response = await getDioClient().get(
         '/mirror/v1/illust/detail',
         queryParameters: {'illust_id': id},
       );
-    } catch (_) {
+      LPrinter.d(
+        '[MirrorDetail] response id=$id status=${response.statusCode} '
+        'realUri=${response.realUri}',
+      );
+      return response;
+    } catch (error) {
+      LPrinter.d('[MirrorDetail] failed id=$id error=$error');
       return null;
     }
   }
