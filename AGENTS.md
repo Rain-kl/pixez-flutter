@@ -36,6 +36,10 @@
     * 正在进行的开发计划或 AI 接手交接发生变化时，在 `docs/plan/` 下更新对应的开发计划或接手文档，并使用相应模板初始化。
 4. **文档变更**：
     * 当相关内容发生变化时，同步更新对应的**中文文档**（不要同步英文文档）。
+5. **从上游合并代码的约束**：
+    * **禁止修改 CI 流程**：同步上游代码时，禁止更新或修改项目的 CI 流程配置文件（例如 `.github/workflows/` 下的构建逻辑）。
+    * **保留依赖覆盖配置**：合并时必须绝对保留 `pubspec.yaml` 中对 `rhttp` 和 `dio_compatibility_layer` 的 `dependency_overrides` 劫持路径映射，保证底层以原生 Dio 运行。
+    * **冲突解决与验证**：发生合并冲突时，应严格参考 `docs/merge/rhttp-mock-merge-guide.md` 以及 `docs/merge/cache-manager-merge-guide.md` 处理，并在完成后运行 `flutter pub get` 和 `flutter analyze` 校验。
 
 # Wavelet Agent Index
 
