@@ -80,6 +80,10 @@ dependencies:
 
 dependency_overrides: 
   permission_handler_apple: 9.4.10
+  rhttp:
+    path: ./lib/custom/mocks/rhttp
+  dio_compatibility_layer:
+    path: ./lib/custom/mocks/dio_compatibility_layer
 
 dev_dependencies:
   flutter_test:

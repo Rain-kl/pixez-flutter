@@ -1,0 +1,6 @@
+name: rhttp
+description: A mock local package replacing rhttp with standard Dart HttpClient.
+version: 9.9.9
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"

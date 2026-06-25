@@ -1,0 +1,9 @@
+name: dio_compatibility_layer
+description: A mock local package replacing dio_compatibility_layer with standard Dio configuration.
+version: 9.9.9
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  dio: ^5.0.0
