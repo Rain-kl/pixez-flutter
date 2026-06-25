@@ -41,7 +41,7 @@ class Hoster {
         ),
       )
     );
-    httpClient.httpClientAdapter = ConversionLayerAdapter(compatibleClient!);
+    httpClient.httpClientAdapter = ConversionLayerAdapter(compatibleClient);
     return httpClient;
   }
 
