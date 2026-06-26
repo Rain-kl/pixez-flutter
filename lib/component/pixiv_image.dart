@@ -18,7 +18,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
 import 'package:dio_compatibility_layer/dio_compatibility_layer.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_cache_manager_dio/flutter_cache_manager_dio.dart';
 import 'package:pixez/custom/services/mirror_fallback_service.dart';
 import 'package:pixez/er/hoster.dart';
@@ -38,7 +37,7 @@ const ImageSHost = "s.pximg.net";
 // 如果你恰好看到这个实现方法实例，且对你有些帮助或者启发：
 // 听一首Mili-Salt, Pepper, Birds, And the Thought Police吧 🎵
 
-BaseCacheManager? pixivCacheManager = DioCacheManager.instance;
+DioCacheManager? pixivCacheManager = DioCacheManager.instance;
 
 class PixEzCacheHeaderData {
   final String key;
@@ -94,7 +93,6 @@ class PixivImage extends StatefulWidget {
     dio.httpClientAdapter = ConversionLayerAdapter(client);
     _cacheDio = dio;
     DioCacheManager.initialize(dio);
-    pixivCacheManager = DioCacheManager.instance;
   }
 }
 
